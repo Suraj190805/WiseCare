@@ -7,8 +7,10 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, User, Heart
 } from 'lucide-react';
 import { MOCK_USERS } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 
 export default function EmergencyPage() {
+  const { triggerSOS: pushSOSAlert } = useSharedData();
   const [isSosActive, setIsSosActive] = useState(false);
   const [countdown, setCountdown] = useState(10);
   const [isAlertSent, setIsAlertSent] = useState(false);
@@ -35,7 +37,9 @@ export default function EmergencyPage() {
 
     if (countdown <= 0) {
       setIsAlertSent(true);
-      // Simulate sending alert
+      // Push SOS alert to shared store — caregiver & doctor see it
+      triggerSOS('🚨 EMERGENCY SOS — Patient Rajan Kumar triggered manual SOS alert! Location: Jayanagar, Bangalore');
+      // Local history
       setAlertHistory(prev => [{
         id: Date.now(),
         time: new Date().toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),

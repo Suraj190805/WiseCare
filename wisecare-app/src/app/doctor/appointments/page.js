@@ -3,73 +3,63 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Video, MapPin, Clock, Plus, ChevronLeft, ChevronRight, User, CheckCircle2, Phone, X, Trash2 } from 'lucide-react';
+import { useSharedData } from '@/lib/SharedDataStore';
 import { useToast } from '@/lib/Toast';
 import Modal from '@/lib/Modal';
 
 export default function DoctorAppointmentsPage() {
   const { addToast } = useToast();
+  const { appointments, addAppointment, cancelAppointment, completeAppointment } = useSharedData();
   const [view, setView] = useState('upcoming');
   const [showSchedule, setShowSchedule] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [activeCallApt, setActiveCallApt] = useState(null);
   const [newApt, setNewApt] = useState({ patient: '', date: '', time: '', type: 'video', reason: '', notes: '' });
 
-  const [appointments, setAppointments] = useState([
-    { id: 1, patient: 'Rajan Kumar', age: 73, avatar: 'RK', type: 'video', date: 'Today', time: '3:00 PM', status: 'upcoming', reason: 'Monthly diabetes review', notes: 'Review blood sugar trends, adjust Metformin if needed' },
-    { id: 2, patient: 'Mohan Lal', age: 79, avatar: 'ML', type: 'in-person', date: 'Apr 3', time: '10:00 AM', status: 'scheduled', reason: 'COPD follow-up', notes: 'Spirometry results pending, check oxygen levels' },
-    { id: 3, patient: 'Rajan Kumar', age: 73, avatar: 'RK', type: 'video', date: 'Apr 5', time: '11:00 AM', status: 'scheduled', reason: 'Blood pressure follow-up', notes: 'Review home BP readings' },
-    { id: 4, patient: 'Kamala Rao', age: 71, avatar: 'KR', type: 'in-person', date: 'Apr 8', time: '2:30 PM', status: 'scheduled', reason: 'Cardiac checkup', notes: 'ECG and echocardiogram review' },
-    { id: 5, patient: 'Sunita Devi', age: 68, avatar: 'SD', type: 'video', date: 'Apr 10', time: '4:00 PM', status: 'scheduled', reason: 'Arthritis pain management', notes: 'Evaluate NSAID effectiveness' },
-  ]);
+  // Split appointments into upcoming vs completed
+  const upcomingApts = appointments.filter(a => a.status !== 'completed' && a.status !== 'cancelled');
+  const pastApts = appointments.filter(a => a.status === 'completed');
 
-  const [pastAppointments, setPastAppointments] = useState([
-    { id: 6, patient: 'Rajan Kumar', avatar: 'RK', type: 'video', date: 'Mar 25', time: '3:00 PM', status: 'completed', reason: 'Diabetes review', outcome: 'Continued current medication. HbA1c improved to 7.2%.' },
-    { id: 7, patient: 'Sunita Devi', avatar: 'SD', type: 'in-person', date: 'Mar 20', time: '11:00 AM', status: 'completed', reason: 'Hypertension review', outcome: 'Added Telmisartan 40mg. BP readings to be monitored.' },
-    { id: 8, patient: 'Mohan Lal', avatar: 'ML', type: 'video', date: 'Mar 15', time: '10:00 AM', status: 'completed', reason: 'COPD assessment', outcome: 'Increased inhaler dosage. Ordered spirometry.' },
-  ]);
-
-  const displayedApts = view === 'upcoming' ? appointments : pastAppointments;
+  const displayedApts = view === 'upcoming' ? upcomingApts : pastApts;
 
   const handleScheduleNew = () => {
     if (!newApt.patient || !newApt.date || !newApt.time) {
       addToast('Please fill in patient, date, and time', 'warning');
       return;
     }
-    const apt = {
-      id: Date.now(),
+    const formattedDate = new Date(newApt.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+    const formattedTime = new Date(`2000-01-01T${newApt.time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    addAppointment({
       patient: newApt.patient,
-      avatar: newApt.patient.split(' ').map(w => w[0]).join(''),
+      doctor: 'Dr. Priya Sharma',
+      specialty: 'Cardiologist',
       type: newApt.type,
-      date: newApt.date,
-      time: newApt.time,
-      status: 'scheduled',
+      date: formattedDate,
+      time: formattedTime,
       reason: newApt.reason || 'General consultation',
-      notes: newApt.notes || ''
-    };
-    setAppointments(prev => [...prev, apt]);
+      notes: newApt.notes || '',
+      source: 'doctor',
+    });
     setShowSchedule(false);
     setNewApt({ patient: '', date: '', time: '', type: 'video', reason: '', notes: '' });
-    addToast(`✅ Appointment scheduled with ${apt.patient} on ${apt.date}`, 'success');
+    addToast(`✅ Appointment scheduled with ${newApt.patient}`, 'success');
   };
 
   const handleCancelApt = (aptId) => {
-    setAppointments(prev => prev.filter(a => a.id !== aptId));
+    cancelAppointment(aptId);
     addToast('Appointment cancelled', 'warning');
   };
 
   const handleCompleteApt = (aptId) => {
-    const apt = appointments.find(a => a.id === aptId);
-    if (apt) {
-      setAppointments(prev => prev.filter(a => a.id !== aptId));
-      setPastAppointments(prev => [{ ...apt, status: 'completed', outcome: 'Consultation completed successfully.' }, ...prev]);
-      addToast(`✅ Marked appointment with ${apt.patient} as completed`, 'success');
-    }
+    completeAppointment(aptId, 'Consultation completed successfully.');
+    addToast('✅ Appointment marked as completed', 'success');
   };
 
   const handleJoinVideo = (apt) => {
     setActiveCallApt(apt);
     setShowVideoCall(true);
-    addToast(`📹 Joining video call with ${apt.patient}...`, 'info');
+    addToast(`📹 Joining video call with ${apt.patient || apt.doctor}...`, 'info');
   };
 
   const endVideoCall = () => {
@@ -77,11 +67,16 @@ export default function DoctorAppointmentsPage() {
     setShowVideoCall(false);
     setActiveCallApt(null);
     if (apt) {
-      addToast(`📹 Video call with ${apt.patient} ended`, 'success');
+      addToast(`📹 Video call with ${apt.patient || apt.doctor} ended`, 'success');
     }
   };
 
   const patientOptions = ['Rajan Kumar', 'Sunita Devi', 'Mohan Lal', 'Kamala Rao'];
+
+  const getAvatarInitials = (name) => {
+    if (!name) return '??';
+    return name.split(' ').map(w => w[0]).join('').slice(0, 2);
+  };
 
   return (
     <div className="fade-in">
@@ -101,30 +96,30 @@ export default function DoctorAppointmentsPage() {
       <div className="stat-grid" style={{ marginBottom: '28px' }}>
         <div className="stat-card teal">
           <div className="stat-icon teal"><Calendar size={22} /></div>
-          <div className="stat-value">{appointments.length}</div>
+          <div className="stat-value">{upcomingApts.length}</div>
           <div className="stat-label">Upcoming</div>
         </div>
         <div className="stat-card primary">
           <div className="stat-icon primary"><Video size={22} /></div>
-          <div className="stat-value">{appointments.filter(a => a.type === 'video').length}</div>
+          <div className="stat-value">{upcomingApts.filter(a => a.type === 'video').length}</div>
           <div className="stat-label">Video Calls</div>
         </div>
         <div className="stat-card emerald">
           <div className="stat-icon emerald"><CheckCircle2 size={22} /></div>
-          <div className="stat-value">{pastAppointments.length}</div>
+          <div className="stat-value">{pastApts.length}</div>
           <div className="stat-label">Completed This Month</div>
         </div>
         <div className="stat-card amber">
           <div className="stat-icon amber"><Clock size={22} /></div>
-          <div className="stat-value">{appointments.filter(a => a.date === 'Today').length}</div>
+          <div className="stat-value">{upcomingApts.filter(a => a.date === 'Today' || a.status === 'upcoming').length}</div>
           <div className="stat-label">Today</div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="pill-tabs" style={{ marginBottom: '24px' }}>
-        <button className={`pill-tab ${view === 'upcoming' ? 'active' : ''}`} onClick={() => setView('upcoming')}>Upcoming ({appointments.length})</button>
-        <button className={`pill-tab ${view === 'past' ? 'active' : ''}`} onClick={() => setView('past')}>Past ({pastAppointments.length})</button>
+        <button className={`pill-tab ${view === 'upcoming' ? 'active' : ''}`} onClick={() => setView('upcoming')}>Upcoming ({upcomingApts.length})</button>
+        <button className={`pill-tab ${view === 'past' ? 'active' : ''}`} onClick={() => setView('past')}>Past ({pastApts.length})</button>
       </div>
 
       {/* Appointment List */}
@@ -145,12 +140,12 @@ export default function DoctorAppointmentsPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '0.9rem', fontWeight: 700
                 }}>
-                  {apt.avatar}
+                  {getAvatarInitials(apt.patient || apt.doctor)}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--font-size-base)' }}>{apt.patient}</div>
+                  <div style={{ fontWeight: 700, fontSize: 'var(--font-size-base)' }}>{apt.patient || apt.doctor}</div>
                   <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>
-                    {apt.reason}
+                    {apt.reason || apt.specialty || 'Consultation'}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -162,17 +157,22 @@ export default function DoctorAppointmentsPage() {
                     <span className={`badge ${apt.type === 'video' ? 'badge-info' : 'badge-success'}`} style={{ fontSize: '0.65rem' }}>
                       {apt.type === 'video' ? '📹 Video' : '🏥 In-person'}
                     </span>
+                    {apt.source && (
+                      <span className="badge" style={{ fontSize: '0.6rem', background: apt.source === 'patient' ? 'rgba(45,212,191,0.1)' : 'rgba(79,107,255,0.1)', color: apt.source === 'patient' ? 'var(--accent-teal)' : 'var(--primary-soft)' }}>
+                        {apt.source === 'patient' ? '🧑 Patient booked' : '👨‍⚕ Doctor scheduled'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                {apt.status === 'upcoming' && apt.type === 'video' && (
+                {(apt.status === 'upcoming' || apt.status === 'scheduled') && apt.type === 'video' && (
                   <motion.button className="btn btn-primary btn-sm" whileTap={{ scale: 0.95 }} onClick={() => handleJoinVideo(apt)}>
                     <Video size={16} /> Join Now
                   </motion.button>
                 )}
-                {apt.status === 'upcoming' && (
+                {(apt.status === 'upcoming' || apt.status === 'scheduled') && (
                   <motion.button className="btn btn-ghost btn-sm" whileTap={{ scale: 0.95 }} onClick={() => handleCompleteApt(apt.id)} style={{ color: 'var(--accent-emerald)' }}>
                     <CheckCircle2 size={16} /> Complete
                   </motion.button>
@@ -189,17 +189,19 @@ export default function DoctorAppointmentsPage() {
             </div>
 
             {/* Notes */}
-            <div style={{
-              marginTop: '14px', padding: '12px 16px',
-              background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-sm)',
-              fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)'
-            }}>
-              {apt.outcome ? (
-                <><strong style={{ color: 'var(--text-primary)' }}>Outcome:</strong> {apt.outcome}</>
-              ) : (
-                <><strong style={{ color: 'var(--text-primary)' }}>Notes:</strong> {apt.notes}</>
-              )}
-            </div>
+            {(apt.notes || apt.outcome) && (
+              <div style={{
+                marginTop: '14px', padding: '12px 16px',
+                background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-sm)',
+                fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)'
+              }}>
+                {apt.outcome ? (
+                  <><strong style={{ color: 'var(--text-primary)' }}>Outcome:</strong> {apt.outcome}</>
+                ) : (
+                  <><strong style={{ color: 'var(--text-primary)' }}>Notes:</strong> {apt.notes}</>
+                )}
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
@@ -268,18 +270,6 @@ export default function DoctorAppointmentsPage() {
             <input className="input" placeholder="e.g. Monthly diabetes review" value={newApt.reason} onChange={(e) => setNewApt(prev => ({ ...prev, reason: e.target.value }))} />
           </div>
 
-          <div className="input-group">
-            <label className="input-label">Notes (optional)</label>
-            <textarea
-              className="input"
-              rows={3}
-              placeholder="Any preparation or pre-visit notes..."
-              value={newApt.notes}
-              onChange={(e) => setNewApt(prev => ({ ...prev, notes: e.target.value }))}
-              style={{ resize: 'vertical', minHeight: '80px' }}
-            />
-          </div>
-
           <motion.button className="btn btn-primary" whileTap={{ scale: 0.97 }} onClick={handleScheduleNew} style={{ width: '100%' }}>
             <Calendar size={18} /> Schedule Appointment
           </motion.button>
@@ -287,7 +277,7 @@ export default function DoctorAppointmentsPage() {
       </Modal>
 
       {/* Video Call Modal */}
-      <Modal isOpen={showVideoCall} onClose={endVideoCall} title="Video Consultation" subtitle={activeCallApt ? `With ${activeCallApt.patient}` : ''} maxWidth="600px">
+      <Modal isOpen={showVideoCall} onClose={endVideoCall} title="Video Consultation" subtitle={activeCallApt ? `With ${activeCallApt.patient || activeCallApt.doctor}` : ''} maxWidth="600px">
         {activeCallApt && (
           <div>
             <div style={{
@@ -302,9 +292,9 @@ export default function DoctorAppointmentsPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '2rem', fontWeight: 700, marginBottom: '16px'
               }}>
-                {activeCallApt.avatar}
+                {getAvatarInitials(activeCallApt.patient || activeCallApt.doctor)}
               </div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>{activeCallApt.patient}</div>
+              <div style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>{activeCallApt.patient || activeCallApt.doctor}</div>
               <div style={{ color: 'var(--accent-emerald)', fontSize: 'var(--font-size-sm)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-emerald)', animation: 'sos-pulse 2s infinite' }} />
                 Connected

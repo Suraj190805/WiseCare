@@ -7,41 +7,15 @@ import {
   TrendingUp, Calendar, Info, ChevronDown
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, LineChart, Line } from 'recharts';
-import { MOCK_MEDICATIONS, MOCK_MED_LOGS, MOCK_ADHERENCE_WEEKLY } from '@/lib/mockData';
+import { MOCK_ADHERENCE_WEEKLY } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 
 const COLORS = ['teal', 'primary', 'purple', 'amber', 'emerald', 'rose'];
-
-const STORAGE_KEYS = {
-  MEDICATIONS: 'wisecare_medications',
-  MED_LOGS: 'wisecare_med_logs',
-};
-
-function loadFromStorage(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveToStorage(key, value) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
 
 export default function MedicationsPage() {
   const [activeTab, setActiveTab] = useState('today');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [medications, setMedications] = useState(() => loadFromStorage(STORAGE_KEYS.MEDICATIONS, [...MOCK_MEDICATIONS]));
-  const [medLogs, setMedLogs] = useState(() => loadFromStorage(STORAGE_KEYS.MED_LOGS, [...MOCK_MED_LOGS]));
-
-  // Persist to localStorage on change
-  useEffect(() => { saveToStorage(STORAGE_KEYS.MEDICATIONS, medications); }, [medications]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.MED_LOGS, medLogs); }, [medLogs]);
+  const { medications, medLogs, takeMed, skipMed, addMedication, addMedLogs, adherenceRate } = useSharedData();
 
   // Add medication form state
   const [newMed, setNewMed] = useState({
@@ -52,20 +26,12 @@ export default function MedicationsPage() {
     times: '',
   });
 
-  const adherenceRate = medLogs.length > 0
-    ? Math.round((medLogs.filter(l => l.status === 'taken').length / medLogs.length) * 100)
-    : 0;
-
   const handleTakeMed = (logId) => {
-    setMedLogs(prev => prev.map(l =>
-      l.id === logId ? { ...l, status: 'taken' } : l
-    ));
+    takeMed(logId);
   };
 
   const handleSkipMed = (logId) => {
-    setMedLogs(prev => prev.map(l =>
-      l.id === logId ? { ...l, status: 'skipped' } : l
-    ));
+    skipMed(logId);
   };
 
   const handleAddMedication = () => {
@@ -77,7 +43,6 @@ export default function MedicationsPage() {
       : ['08:00'];
     const color = COLORS[medications.length % COLORS.length];
 
-    // Create the new medication object
     const medication = {
       id: medId,
       name: newMed.name.trim(),
@@ -85,12 +50,11 @@ export default function MedicationsPage() {
       frequency: newMed.frequency.trim() || 'As directed',
       times: timesArray,
       color,
-      instructions: newMed.instructions.trim() || 'Follow doctor\'s instructions',
+      instructions: newMed.instructions.trim() || "Follow doctor's instructions",
       remaining: 30,
       total: 30,
     };
 
-    // Create log entries for each scheduled time
     const newLogs = timesArray.map((time, idx) => ({
       id: `log_${Date.now()}_${idx}`,
       medId,
@@ -99,11 +63,9 @@ export default function MedicationsPage() {
       date: 'today',
     }));
 
-    // Update state (localStorage will sync via useEffect)
-    setMedications(prev => [...prev, medication]);
-    setMedLogs(prev => [...prev, ...newLogs]);
+    addMedication(medication);
+    addMedLogs(newLogs);
 
-    // Reset form and close modal
     setNewMed({ name: '', dosage: '', frequency: '', instructions: '', times: '' });
     setShowAddModal(false);
   };

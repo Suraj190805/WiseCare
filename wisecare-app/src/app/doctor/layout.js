@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_ALERTS } from '@/lib/mockData';
 import { ToastProvider } from '@/lib/Toast';
+import { useLanguage } from '@/lib/LanguageContext';
+import CrossRoleMessaging from '@/lib/CrossRoleMessaging';
+import LanguageSwitcher from '@/lib/LanguageSwitcher';
 
 export default function DoctorLayout({ children }) {
   const router = useRouter();
@@ -18,6 +21,7 @@ export default function DoctorLayout({ children }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [alerts, setAlerts] = useState(MOCK_ALERTS);
   const [searchQuery, setSearchQuery] = useState('');
+  const { t } = useLanguage();
   const user = MOCK_USERS.doctor;
   const unreadAlerts = alerts.filter(a => !a.read).length;
 
@@ -26,12 +30,12 @@ export default function DoctorLayout({ children }) {
   }, [pathname]);
 
   const navItems = [
-    { href: '/doctor', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/doctor/patients', icon: Users, label: 'My Patients', badge: '4' },
-    { href: '/doctor/appointments', icon: Calendar, label: 'Appointments' },
-    { href: '/doctor/records', icon: FileText, label: 'Health Records' },
-    { href: '/doctor/interactions', icon: AlertTriangle, label: 'Drug Interactions', badge: '2' },
-    { href: '/doctor/reports', icon: ClipboardList, label: 'Reports' },
+    { href: '/doctor', icon: LayoutDashboard, label: t('nav.dashboard') },
+    { href: '/doctor/patients', icon: Users, label: t('nav.patients'), badge: '4' },
+    { href: '/doctor/appointments', icon: Calendar, label: t('nav.appointments') },
+    { href: '/doctor/records', icon: FileText, label: t('nav.records') },
+    { href: '/doctor/interactions', icon: AlertTriangle, label: t('nav.interactions'), badge: '2' },
+    { href: '/doctor/reports', icon: ClipboardList, label: t('nav.reports') },
   ];
 
   const isActive = (href) => {
@@ -76,16 +80,16 @@ export default function DoctorLayout({ children }) {
 
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`} style={sidebarOpen ? { transform: 'translateX(0)' } : {}}>
           <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">🩺</div>
-            <div>
-              <div className="sidebar-logo-text">CareCompanion</div>
-              <div className="sidebar-logo-sub">Doctor Portal</div>
-            </div>
+          <div className="sidebar-logo-icon">🩺</div>
+          <div>
+            <div className="sidebar-logo-text">{t('brand.name')}</div>
+            <div className="sidebar-logo-sub">{t('brand.doctorPortal')}</div>
           </div>
+        </div>
 
           <nav className="sidebar-nav">
-            <div className="sidebar-section-label">Clinical</div>
-            {navItems.map((item) => (
+            <div className="sidebar-section-label">{t('nav.clinical')}</div>
+          {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -97,10 +101,10 @@ export default function DoctorLayout({ children }) {
               </Link>
             ))}
 
-            <div className="sidebar-section-label" style={{ marginTop: '16px' }}>Account</div>
-            <div className="nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-              <LogOut size={20} /> <span>Logout</span>
-            </div>
+            <div className="sidebar-section-label" style={{ marginTop: '16px' }}>{t('nav.account')}</div>
+          <div className="nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
+            <LogOut size={20} /> <span>{t('nav.logout')}</span>
+          </div>
           </nav>
 
           <div className="sidebar-user">
@@ -128,7 +132,7 @@ export default function DoctorLayout({ children }) {
             }}>
               <Search size={16} style={{ color: 'var(--text-muted)' }} />
               <input
-                placeholder="Search patients..."
+                placeholder={t('header.searchPatients')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
@@ -169,13 +173,13 @@ export default function DoctorLayout({ children }) {
                     }}
                   >
                     <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Notifications</span>
+                      <span>{t('header.notifications')}</span>
                       {unreadAlerts > 0 && (
                         <button
                           onClick={markNotificationsRead}
                           style={{ background: 'none', border: 'none', color: 'var(--primary-soft)', cursor: 'pointer', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}
                         >
-                          Mark all read
+                          {t('header.markAllRead')}
                         </button>
                       )}
                     </div>
@@ -204,7 +208,9 @@ export default function DoctorLayout({ children }) {
               </AnimatePresence>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px 6px 6px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-full)', border: '1px solid var(--border-subtle)' }}>
+            <LanguageSwitcher compact />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px 6px 6px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-full)', border: '1px solid var(--border-subtle)' }}>
               <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-rose), var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
                 {user.avatar}
               </div>
@@ -216,6 +222,7 @@ export default function DoctorLayout({ children }) {
         <main className="main-content" onClick={() => setShowNotifications(false)}>
           {children}
         </main>
+        <CrossRoleMessaging currentRole="doctor" />
       </div>
     </ToastProvider>
   );

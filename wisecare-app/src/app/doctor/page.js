@@ -8,16 +8,19 @@ import {
   TrendingDown, ChevronRight, Video, Eye, FileText
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
-import {
-  MOCK_USERS, MOCK_VITALS, MOCK_APPOINTMENTS, getGreeting, getCurrentDate
-} from '@/lib/mockData';
+import { MOCK_USERS, getGreeting, getCurrentDate } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
+import ActivityFeed from '@/lib/ActivityFeed';
 
 export default function DoctorDashboardPage() {
   const user = MOCK_USERS.doctor;
+  const { vitals, appointments, adherenceRate, alerts, unreadAlertCount, medications, doctorNotes } = useSharedData();
   const [selectedPatient, setSelectedPatient] = useState(0);
 
+  const upcomingApts = appointments.filter(a => a.status !== 'completed' && a.status !== 'cancelled');
+
   const patientsList = [
-    { id: 'p1', name: 'Rajan Kumar', age: 73, conditions: ['Type 2 Diabetes', 'Hypertension'], risk: 'moderate', adherence: 87, avatar: 'RK' },
+    { id: 'p1', name: 'Rajan Kumar', age: 73, conditions: ['Type 2 Diabetes', 'Hypertension'], risk: 'moderate', adherence: adherenceRate, avatar: 'RK', isLive: true },
     { id: 'p2', name: 'Sunita Devi', age: 68, conditions: ['Hypertension', 'Arthritis'], risk: 'low', adherence: 92, avatar: 'SD' },
     { id: 'p3', name: 'Mohan Lal', age: 79, conditions: ['COPD', 'Diabetes'], risk: 'high', adherence: 65, avatar: 'ML' },
     { id: 'p4', name: 'Kamala Rao', age: 71, conditions: ['Heart Disease'], risk: 'moderate', adherence: 78, avatar: 'KR' },
@@ -25,10 +28,10 @@ export default function DoctorDashboardPage() {
 
   const riskColor = (risk) => risk === 'high' ? 'var(--accent-rose)' : risk === 'moderate' ? 'var(--accent-amber)' : 'var(--accent-emerald)';
 
-  const vitalsHistory = MOCK_VITALS.heartRate.history.map((hr, i) => ({
+  const vitalsHistory = (vitals.heartRate?.history || [74, 71, 73, 72, 75, 71, 72]).map((hr, i) => ({
     day: `Day ${i + 1}`,
     heartRate: hr,
-    bloodSugar: MOCK_VITALS.bloodSugar.history[i],
+    bloodSugar: (vitals.bloodSugar?.history || [165, 158, 150, 148, 145, 143, 142])[i],
   }));
 
   return (
@@ -38,11 +41,11 @@ export default function DoctorDashboardPage() {
           {getGreeting()}, {user.name} 👋
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          {getCurrentDate()} • {patientsList.length} patients under care
+          {getCurrentDate()} • {patientsList.length} patients under care — Live Data 🟢
         </p>
       </div>
 
-      {/* Stats */}
+      {/* Stats — LIVE */}
       <div className="stat-grid" style={{ marginBottom: '28px' }}>
         <div className="stat-card primary">
           <div className="stat-icon primary"><Users size={22} /></div>
@@ -51,17 +54,17 @@ export default function DoctorDashboardPage() {
         </div>
         <div className="stat-card teal">
           <div className="stat-icon teal"><Calendar size={22} /></div>
-          <div className="stat-value">1</div>
-          <div className="stat-label">Consult Today</div>
+          <div className="stat-value">{upcomingApts.filter(a => a.date === 'Today' || a.status === 'upcoming').length}</div>
+          <div className="stat-label">Consults Today</div>
         </div>
         <div className="stat-card amber">
           <div className="stat-icon amber"><AlertTriangle size={22} /></div>
-          <div className="stat-value">2</div>
-          <div className="stat-label">Drug Interaction Flags</div>
+          <div className="stat-value">{unreadAlertCount}</div>
+          <div className="stat-label">Active Alerts</div>
         </div>
         <div className="stat-card rose">
           <div className="stat-icon rose"><Heart size={22} /></div>
-          <div className="stat-value">1</div>
+          <div className="stat-value">{patientsList.filter(p => p.risk === 'high').length}</div>
           <div className="stat-label">High Risk Patients</div>
         </div>
       </div>
@@ -99,18 +102,19 @@ export default function DoctorDashboardPage() {
                     {p.avatar}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{p.name}, {p.age}</div>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {p.name}, {p.age}
+                      {p.isLive && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)', display: 'inline-block' }} />}
+                    </div>
                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{p.conditions.join(', ')}</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span className="badge" style={{
-                    background: `${riskColor(p.risk)}18`, color: riskColor(p.risk), fontSize: '0.7rem'
-                  }}>
+                  <span className="badge" style={{ background: `${riskColor(p.risk)}18`, color: riskColor(p.risk), fontSize: '0.7rem' }}>
                     {p.risk} risk
                   </span>
                   <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Adherence: {p.adherence}%
+                    Adherence: {p.adherence}%{p.isLive ? ' 🟢' : ''}
                   </div>
                 </div>
               </motion.div>
@@ -118,17 +122,19 @@ export default function DoctorDashboardPage() {
           </div>
         </div>
 
-        {/* Vitals Chart */}
+        {/* Vitals Chart — LIVE */}
         <div className="card">
           <h2 className="card-title" style={{ marginBottom: '4px' }}>{patientsList[selectedPatient].name} — Vitals (7 days)</h2>
-          <p className="card-subtitle" style={{ marginBottom: '16px' }}>Heart Rate & Blood Sugar trends</p>
+          <p className="card-subtitle" style={{ marginBottom: '16px' }}>
+            Heart Rate & Blood Sugar trends{patientsList[selectedPatient].isLive ? ' • Live 🟢' : ''}
+          </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
-              { label: 'Heart Rate', value: `${MOCK_VITALS.heartRate.current} bpm`, status: 'Normal', color: 'var(--accent-rose)' },
-              { label: 'Blood Pressure', value: MOCK_VITALS.bloodPressure.current, status: 'Borderline', color: 'var(--accent-amber)' },
-              { label: 'Blood Sugar', value: `${MOCK_VITALS.bloodSugar.current} mg/dL`, status: 'Above Target', color: 'var(--accent-amber)' },
-              { label: 'SpO2', value: `${MOCK_VITALS.spo2.current}%`, status: 'Normal', color: 'var(--accent-emerald)' },
+              { label: 'Heart Rate', value: `${vitals.heartRate?.current || 72} bpm`, status: 'Normal', color: 'var(--accent-rose)' },
+              { label: 'Blood Pressure', value: vitals.bloodPressure?.current || '128/82', status: 'Borderline', color: 'var(--accent-amber)' },
+              { label: 'Blood Sugar', value: `${vitals.bloodSugar?.current || 142} mg/dL`, status: 'Above Target', color: 'var(--accent-amber)' },
+              { label: 'SpO2', value: `${vitals.spo2?.current || 97}%`, status: 'Normal', color: 'var(--accent-emerald)' },
             ].map((v, j) => (
               <div key={j} style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-sm)' }}>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{v.label}</div>
@@ -153,49 +159,58 @@ export default function DoctorDashboardPage() {
           </div>
         </div>
 
-        {/* Appointments */}
+        {/* Appointments — LIVE */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 className="card-title">Today's Appointments</h2>
+            <h2 className="card-title">Upcoming Appointments</h2>
             <Link href="/doctor/appointments" style={{ color: 'var(--primary-soft)', fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               View All <ChevronRight size={16} />
             </Link>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {MOCK_APPOINTMENTS.map((apt) => (
+            {upcomingApts.slice(0, 4).map((apt) => (
               <div key={apt.id} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '14px 16px', background: 'var(--bg-elevated)',
                 borderRadius: 'var(--border-radius-sm)'
               }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>Rajan Kumar</div>
+                  <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{apt.patient || apt.doctor || 'Rajan Kumar'}</div>
                   <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{apt.date} at {apt.time}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <span className={`badge ${apt.type === 'video' ? 'badge-info' : 'badge-success'}`}>
                     {apt.type === 'video' ? '📹 Video' : '🏥 In-person'}
                   </span>
-                  {apt.type === 'video' && apt.status === 'upcoming' && (
-                    <motion.button className="btn btn-primary btn-sm" whileTap={{ scale: 0.95 }} style={{ padding: '6px 12px', minHeight: 'unset' }}>
-                      <Video size={14} /> Join
-                    </motion.button>
+                  {apt.source === 'patient' && <span className="badge" style={{ fontSize: '0.55rem', background: 'rgba(45,212,191,0.1)', color: 'var(--accent-teal)' }}>🧑 Patient</span>}
+                  {apt.type === 'video' && (apt.status === 'upcoming' || apt.status === 'scheduled') && (
+                    <Link href="/doctor/appointments">
+                      <motion.button className="btn btn-primary btn-sm" whileTap={{ scale: 0.95 }} style={{ padding: '6px 12px', minHeight: 'unset' }}>
+                        <Video size={14} /> Join
+                      </motion.button>
+                    </Link>
                   )}
                 </div>
               </div>
             ))}
+            {upcomingApts.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>No upcoming appointments</div>
+            )}
           </div>
         </div>
 
+        {/* Activity Feed */}
+        <ActivityFeed maxItems={8} showFilter={true} />
+
         {/* Drug Interactions */}
-        <div className="card">
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 className="card-title">Drug Interaction Flags</h2>
             <Link href="/doctor/interactions">
               <span className="badge badge-danger">2 active</span>
             </Link>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {[
               { drugs: 'Metformin + Atorvastatin', risk: 'Low', note: 'Minor interaction — monitor liver function', color: 'var(--accent-amber)' },
               { drugs: 'Aspirin + Amlodipine', risk: 'Moderate', note: 'May reduce antihypertensive effect — monitor BP regularly', color: 'var(--accent-rose)' },

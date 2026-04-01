@@ -7,12 +7,14 @@ import {
   User, Heart, Activity, Pill, MapPin, Phone,
   ChevronRight, Eye, TrendingUp, TrendingDown, Plus, Video, X
 } from 'lucide-react';
-import { MOCK_USERS, MOCK_VITALS } from '@/lib/mockData';
+import { MOCK_USERS } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 import { useToast } from '@/lib/Toast';
 import Modal from '@/lib/Modal';
 
 export default function CaregiverPatientsPage() {
   const { addToast } = useToast();
+  const { vitals, adherenceRate, medications, medLogs, alerts: sharedAlerts } = useSharedData();
   const patient = MOCK_USERS.patient;
   const [showLinkPatient, setShowLinkPatient] = useState(false);
   const [linkForm, setLinkForm] = useState({ name: '', phone: '', relation: '', code: '' });
@@ -25,9 +27,6 @@ export default function CaregiverPatientsPage() {
       lastActive: '2 min ago',
       status: 'online',
       location: 'Home',
-      adherence: 87,
-      heartRate: MOCK_VITALS.heartRate.current,
-      bloodSugar: MOCK_VITALS.bloodSugar.current,
     },
   ]);
 
@@ -150,15 +149,15 @@ export default function CaregiverPatientsPage() {
             </div>
           </div>
 
-          {/* Vitals Grid */}
+          {/* Vitals Grid — use live shared data for first patient */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
             {[
-              { label: 'Heart Rate', value: typeof p.heartRate === 'number' ? `${p.heartRate} bpm` : p.heartRate, icon: Heart, color: 'rose', trend: 'Stable' },
-              { label: 'Blood Sugar', value: typeof p.bloodSugar === 'number' ? `${p.bloodSugar} mg/dL` : p.bloodSugar, icon: Activity, color: 'amber', trend: 'Improving' },
-              { label: 'Med Adherence', value: `${p.adherence}%`, icon: Pill, color: 'emerald', trend: '+5%' },
-              { label: 'Blood Pressure', value: MOCK_VITALS.bloodPressure.current, icon: TrendingUp, color: 'purple', trend: 'Stable' },
-              { label: 'SpO2', value: `${MOCK_VITALS.spo2.current}%`, icon: Activity, color: 'teal', trend: 'Normal' },
-              { label: 'Steps Today', value: '3,200', icon: Activity, color: 'primary', trend: '64%' },
+              { label: 'Heart Rate', value: `${vitals.heartRate?.current || '--'} bpm`, icon: Heart, color: 'rose', trend: vitals.heartRate?.trend || 'Stable' },
+              { label: 'Blood Sugar', value: `${vitals.bloodSugar?.current || '--'} mg/dL`, icon: Activity, color: 'amber', trend: vitals.bloodSugar?.trend || 'Stable' },
+              { label: 'Med Adherence', value: `${adherenceRate}%`, icon: Pill, color: 'emerald', trend: adherenceRate > 80 ? 'Good' : 'Needs attention' },
+              { label: 'Blood Pressure', value: vitals.bloodPressure?.current || '--', icon: TrendingUp, color: 'purple', trend: vitals.bloodPressure?.trend || 'Stable' },
+              { label: 'SpO2', value: `${vitals.spo2?.current || '--'}%`, icon: Activity, color: 'teal', trend: 'Normal' },
+              { label: 'Active Alerts', value: `${sharedAlerts.filter(a => !a.read).length}`, icon: Eye, color: 'primary', trend: 'This session' },
             ].map((v, j) => (
               <div key={j} className={`stat-card ${v.color}`} style={{ padding: '16px' }}>
                 <div className={`stat-icon ${v.color}`} style={{ width: '36px', height: '36px', borderRadius: '8px' }}>

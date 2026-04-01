@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -10,12 +10,21 @@ import {
   TrendingUp, TrendingDown, Minus, MapPin, Clock,
   AlertTriangle, CheckCircle2
 } from 'lucide-react';
-import { MOCK_VITALS, MOCK_MEDICATIONS, MOCK_MED_LOGS } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 import { useToast } from '@/lib/Toast';
 import Modal from '@/lib/Modal';
 
-export default function DoctorPatientsPage() {
+export default function DoctorPatientsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="fade-in" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading patients...</div>}>
+      <DoctorPatientsPage />
+    </Suspense>
+  );
+}
+
+function DoctorPatientsPage() {
   const { addToast } = useToast();
+  const { vitals, medications, medLogs, adherenceRate, doctorNotes, addDoctorNote, addAlert } = useSharedData();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const [search, setSearch] = useState(initialSearch);
@@ -24,9 +33,11 @@ export default function DoctorPatientsPage() {
   const [callActive, setCallActive] = useState(false);
   const [videoCallPatient, setVideoCallPatient] = useState(null);
   const [callTimer, setCallTimer] = useState(0);
+  const [noteText, setNoteText] = useState('');
 
+  // Build patient list — Rajan uses LIVE shared data, others are static
   const patients = [
-    { id: 'p1', name: 'Rajan Kumar', age: 73, gender: 'Male', conditions: ['Type 2 Diabetes', 'Hypertension'], risk: 'moderate', adherence: 87, avatar: 'RK', phone: '+91 98765 43210', lastVisit: 'Mar 25, 2026', nextVisit: 'Apr 1, 2026', bp: '128/82', hr: 72, sugar: 142, spo2: 97, weight: '72 kg', medications: ['Metformin 500mg', 'Amlodipine 5mg', 'Atorvastatin 10mg', 'Aspirin 75mg'], notes: 'Blood sugar trending down. Continue current medications. HbA1c improved to 7.2%.' },
+    { id: 'p1', name: 'Rajan Kumar', age: 73, gender: 'Male', conditions: ['Type 2 Diabetes', 'Hypertension'], risk: 'moderate', adherence: adherenceRate, avatar: 'RK', phone: '+91 98765 43210', lastVisit: 'Mar 25, 2026', nextVisit: 'Apr 1, 2026', bp: vitals.bloodPressure?.current || '128/82', hr: vitals.heartRate?.current || 72, sugar: vitals.bloodSugar?.current || 142, spo2: vitals.spo2?.current || 97, weight: `${vitals.weight?.current || 72} kg`, medications: medications.map(m => `${m.name} ${m.dosage}`), notes: doctorNotes.length > 0 ? doctorNotes[0].text : 'Blood sugar trending down. Continue current medications. HbA1c improved to 7.2%.', isLive: true },
     { id: 'p2', name: 'Sunita Devi', age: 68, gender: 'Female', conditions: ['Hypertension', 'Arthritis'], risk: 'low', adherence: 92, avatar: 'SD', phone: '+91 98765 55555', lastVisit: 'Mar 20, 2026', nextVisit: 'Apr 8, 2026', bp: '135/85', hr: 78, sugar: 105, spo2: 98, weight: '65 kg', medications: ['Telmisartan 40mg', 'Diclofenac 50mg'], notes: 'BP slightly elevated. Added Telmisartan. Arthritis managed with NSAIDs.' },
     { id: 'p3', name: 'Mohan Lal', age: 79, gender: 'Male', conditions: ['COPD', 'Diabetes'], risk: 'high', adherence: 65, avatar: 'ML', phone: '+91 98765 66666', lastVisit: 'Mar 28, 2026', nextVisit: 'Apr 3, 2026', bp: '145/92', hr: 85, sugar: 188, spo2: 93, weight: '68 kg', medications: ['Salbutamol Inhaler', 'Metformin 1000mg', 'Tiotropium'], notes: 'COPD worsening. Low medication adherence is concerning. SpO2 needs monitoring.' },
     { id: 'p4', name: 'Kamala Rao', age: 71, gender: 'Female', conditions: ['Heart Disease'], risk: 'moderate', adherence: 78, avatar: 'KR', phone: '+91 98765 77777', lastVisit: 'Mar 22, 2026', nextVisit: 'Apr 10, 2026', bp: '140/88', hr: 74, sugar: 118, spo2: 96, weight: '58 kg', medications: ['Digoxin 0.25mg', 'Amiodarone 200mg', 'Warfarin 5mg'], notes: 'Ejection fraction stable at 55%. Drug interaction flag for Digoxin + Amiodarone.' },
@@ -128,6 +139,7 @@ export default function DoctorPatientsPage() {
                       {p.risk} risk
                     </span>
                     <span className="badge badge-info">Adherence: {p.adherence}%</span>
+                    {p.isLive && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>🟢 LIVE DATA</span>}
                   </div>
                 </div>
               </div>
@@ -256,7 +268,7 @@ export default function DoctorPatientsPage() {
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <motion.button className="btn btn-primary btn-sm" style={{ flex: 1 }} whileTap={{ scale: 0.97 }} onClick={() => { handleVideoCall(selectedPatient); setSelectedPatient(null); }}>
                 <Video size={16} /> Video Call
               </motion.button>
@@ -264,6 +276,46 @@ export default function DoctorPatientsPage() {
                 <Phone size={16} /> Phone Call
               </motion.button>
             </div>
+
+            {/* Add Clinical Note — only for live patients */}
+            {selectedPatient.isLive && (
+              <>
+                <h3 style={{ fontWeight: 600, marginBottom: '10px', fontSize: 'var(--font-size-sm)' }}>Add Clinical Note</h3>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                  <input
+                    className="input"
+                    placeholder="Type a clinical note..."
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <motion.button
+                    className="btn btn-primary btn-sm"
+                    whileTap={{ scale: 0.95 }}
+                    disabled={!noteText.trim()}
+                    style={{ opacity: noteText.trim() ? 1 : 0.5 }}
+                    onClick={() => {
+                      addDoctorNote({ text: noteText.trim(), doctor: 'Dr. Priya Sharma', patientId: selectedPatient.id });
+                      addAlert({ type: 'clinical', message: `Dr. Priya added a note for ${selectedPatient.name}`, severity: 'info', source: 'doctor' });
+                      addToast('Clinical note saved', 'success');
+                      setNoteText('');
+                    }}
+                  >
+                    Save Note
+                  </motion.button>
+                </div>
+                {doctorNotes.filter(n => n.patientId === selectedPatient.id).length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {doctorNotes.filter(n => n.patientId === selectedPatient.id).slice(0, 5).map(note => (
+                      <div key={note.id} style={{ padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-sm)', fontSize: 'var(--font-size-sm)' }}>
+                        <div style={{ color: 'var(--text-secondary)' }}>{note.text}</div>
+                        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>{note.doctor} • {note.date}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </Modal>

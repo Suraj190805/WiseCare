@@ -3,42 +3,35 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, AlertTriangle, CheckCircle2, Clock, Filter, Trash2, X } from 'lucide-react';
-import { MOCK_ALERTS } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 import { useToast } from '@/lib/Toast';
 
 export default function CaregiverAlertsPage() {
   const { addToast } = useToast();
+  const { alerts, markAlertRead, markAllAlertsRead, deleteAlert, clearAllAlerts } = useSharedData();
   const [filter, setFilter] = useState('all');
-  const [alerts, setAlerts] = useState([
-    ...MOCK_ALERTS,
-    { id: 'alert_6', type: 'vitals', message: 'Heart rate elevated to 95 bpm during afternoon walk', time: 'Yesterday, 3:15 PM', severity: 'warning', read: true },
-    { id: 'alert_7', type: 'medication', message: 'Atorvastatin dose taken on time (9:00 PM)', time: 'Yesterday, 9:02 PM', severity: 'info', read: true },
-    { id: 'alert_8', type: 'location', message: 'Rajan returned to Home safe zone', time: '2 days ago', severity: 'info', read: true },
-    { id: 'alert_9', type: 'activity', message: 'Daily step goal achieved (5,000 steps)', time: '2 days ago', severity: 'info', read: true },
-    { id: 'alert_10', type: 'vitals', message: 'Blood sugar fasting reading: 135 mg/dL (within range)', time: '3 days ago', severity: 'info', read: true },
-  ]);
 
   const filteredAlerts = filter === 'all' ? alerts :
     filter === 'unread' ? alerts.filter(a => !a.read) :
     alerts.filter(a => a.type === filter);
 
   const markAllRead = () => {
-    setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+    markAllAlertsRead();
     addToast('All alerts marked as read', 'success');
   };
 
-  const markRead = (id) => {
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+  const handleMarkRead = (id) => {
+    markAlertRead(id);
     addToast('Alert marked as read', 'success');
   };
 
-  const deleteAlert = (id) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
+  const handleDelete = (id) => {
+    deleteAlert(id);
     addToast('Alert dismissed', 'info');
   };
 
   const clearAll = () => {
-    setAlerts([]);
+    clearAllAlerts();
     addToast('All alerts cleared', 'info');
   };
 
@@ -150,7 +143,7 @@ export default function CaregiverAlertsPage() {
                   <motion.button
                     className="btn btn-ghost btn-sm"
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => markRead(alert.id)}
+                    onClick={() => handleMarkRead(alert.id)}
                     style={{ padding: '4px 10px', minHeight: 'unset', fontSize: 'var(--font-size-xs)' }}
                   >
                     <CheckCircle2 size={12} /> Read
@@ -159,7 +152,7 @@ export default function CaregiverAlertsPage() {
                 <motion.button
                   className="btn btn-ghost btn-sm"
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => deleteAlert(alert.id)}
+                  onClick={() => handleDelete(alert.id)}
                   style={{ padding: '4px 8px', minHeight: 'unset', color: 'var(--text-muted)' }}
                 >
                   <X size={14} />

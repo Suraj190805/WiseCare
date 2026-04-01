@@ -4,24 +4,27 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowRight, Heart, Mic, Shield, Bell, MapPin, Video, Activity } from 'lucide-react';
+import { useLanguage } from '@/lib/LanguageContext';
+import LanguageSwitcher from '@/lib/LanguageSwitcher';
 
 export default function HomePage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const features = [
-    { icon: <Mic size={28} />, title: 'AI Voice Companion', desc: 'Natural voice interaction in 10+ languages', color: 'var(--accent-teal)', bg: 'var(--accent-teal-soft)' },
-    { icon: <Bell size={28} />, title: 'Smart Reminders', desc: 'Never miss a medication or appointment', color: 'var(--primary)', bg: 'var(--primary-glow)' },
-    { icon: <Shield size={28} />, title: 'Emergency SOS', desc: 'One-tap alert to family & emergency services', color: 'var(--accent-rose)', bg: 'var(--accent-rose-soft)' },
-    { icon: <MapPin size={28} />, title: 'Live Location', desc: 'Real-time GPS with safe zone alerts', color: 'var(--accent-amber)', bg: 'var(--accent-amber-soft)' },
-    { icon: <Video size={28} />, title: 'Video Consults', desc: 'Secure video calls with your doctor', color: 'var(--accent-purple)', bg: 'var(--accent-purple-soft)' },
-    { icon: <Activity size={28} />, title: 'Health Monitoring', desc: 'Track vitals, activity & wellness trends', color: 'var(--accent-emerald)', bg: 'var(--accent-emerald-soft)' },
+    { icon: <Mic size={28} />, title: t('landing.feat1Title'), desc: t('landing.feat1Desc'), color: 'var(--accent-teal)', bg: 'var(--accent-teal-soft)' },
+    { icon: <Bell size={28} />, title: t('landing.feat2Title'), desc: t('landing.feat2Desc'), color: 'var(--primary)', bg: 'var(--primary-glow)' },
+    { icon: <Shield size={28} />, title: t('landing.feat3Title'), desc: t('landing.feat3Desc'), color: 'var(--accent-rose)', bg: 'var(--accent-rose-soft)' },
+    { icon: <MapPin size={28} />, title: t('landing.feat4Title'), desc: t('landing.feat4Desc'), color: 'var(--accent-amber)', bg: 'var(--accent-amber-soft)' },
+    { icon: <Video size={28} />, title: t('landing.feat5Title'), desc: t('landing.feat5Desc'), color: 'var(--accent-purple)', bg: 'var(--accent-purple-soft)' },
+    { icon: <Activity size={28} />, title: t('landing.feat6Title'), desc: t('landing.feat6Desc'), color: 'var(--accent-emerald)', bg: 'var(--accent-emerald-soft)' },
   ];
 
   const stats = [
-    { value: '140M+', label: 'Elderly Indians', sub: 'who need care support' },
-    { value: '85%', label: 'Adherence Goal', sub: 'from 50% baseline' },
-    { value: '<30s', label: 'SOS Response', sub: 'emergency alert delivery' },
-    { value: '10+', label: 'Languages', sub: 'regional voice support' },
+    { value: '140M+', label: t('landing.stat1Label'), sub: t('landing.stat1Sub') },
+    { value: '85%', label: t('landing.stat2Label'), sub: t('landing.stat2Sub') },
+    { value: '<30s', label: t('landing.stat3Label'), sub: t('landing.stat3Sub') },
+    { value: '10+', label: t('landing.stat4Label'), sub: t('landing.stat4Sub') },
   ];
 
   return (
@@ -39,15 +42,18 @@ export default function HomePage() {
           <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg, var(--primary), var(--accent-teal))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>🩺</div>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--font-size-lg)', fontWeight: 700 }}>CareCompanion AI</span>
         </div>
-        <motion.button
-          className="btn btn-primary"
-          onClick={() => router.push('/login')}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          style={{ padding: '10px 24px', minHeight: '44px' }}
-        >
-          Get Started <ArrowRight size={18} />
-        </motion.button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <LanguageSwitcher />
+          <motion.button
+            className="btn btn-primary"
+            onClick={() => router.push('/login')}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            style={{ padding: '10px 24px', minHeight: '44px' }}
+          >
+            {t('landing.getStarted')} <ArrowRight size={18} />
+          </motion.button>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -64,19 +70,19 @@ export default function HomePage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <Heart size={16} fill="currentColor" /> AI-Driven Healthcare Hackathon 2025
+            <Heart size={16} fill="currentColor" />{t('landing.hackathon')}
           </motion.div>
 
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, lineHeight: 1.1, marginBottom: '24px' }}>
-            Compassionate AI Care
+            {t('landing.heroTitle1')}
             <br />
             <span style={{ background: 'linear-gradient(135deg, var(--primary-soft), var(--accent-teal))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              for Every Elder
+              {t('landing.heroTitle2')}
             </span>
           </h1>
 
           <p style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto 40px', lineHeight: 1.7 }}>
-            Voice-first health companion that empowers elderly individuals to live independently with smart medication management, emergency response, and seamless family connectivity.
+            {t('landing.heroDesc')}
           </p>
 
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -86,7 +92,7 @@ export default function HomePage() {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
-              Start Using CareCompanion <ArrowRight size={20} />
+              {t('landing.startUsing')} <ArrowRight size={20} />
             </motion.button>
             <motion.button
               className="btn btn-ghost btn-lg"
@@ -94,7 +100,7 @@ export default function HomePage() {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
-              Watch Demo
+              {t('landing.watchDemo')}
             </motion.button>
           </div>
         </motion.div>
@@ -110,7 +116,7 @@ export default function HomePage() {
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>72 BPM</div>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Heart Rate</div>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{t('landing.heartRate')}</div>
           </div>
         </motion.div>
 
@@ -123,7 +129,7 @@ export default function HomePage() {
             <Bell size={18} style={{ color: 'var(--accent-teal)' }} />
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>Medication Due</div>
+            <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{t('landing.medicationDue')}</div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Metformin 500mg</div>
           </div>
         </motion.div>
@@ -161,10 +167,10 @@ export default function HomePage() {
           style={{ textAlign: 'center', marginBottom: '48px' }}
         >
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginBottom: '12px' }}>
-            Everything Your Loved One Needs
+            {t('landing.featTitle')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto' }}>
-            Comprehensive care platform designed with empathy, powered by AI
+            {t('landing.featDesc')}
           </p>
         </motion.div>
 
@@ -202,10 +208,10 @@ export default function HomePage() {
           style={{ padding: '60px 40px' }}
         >
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--font-size-2xl)', fontWeight: 800, marginBottom: '16px' }}>
-            Ready to Give Your Family <br />Peace of Mind?
+            {t('landing.ctaTitle')} <br />{t('landing.ctaTitle2')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', maxWidth: '500px', margin: '0 auto 32px' }}>
-            Join thousands of families using CareCompanion AI to keep their elders safe, healthy, and connected.
+            {t('landing.ctaDesc')}
           </p>
           <motion.button
             className="btn btn-primary btn-lg"
@@ -213,7 +219,7 @@ export default function HomePage() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
           >
-            Get Started Free <ArrowRight size={20} />
+            {t('landing.getStartedFree')} <ArrowRight size={20} />
           </motion.button>
         </motion.div>
       </section>
@@ -225,7 +231,7 @@ export default function HomePage() {
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>CareCompanion AI</span>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>
-          Built with ❤️ for AI-Driven Healthcare Hackathon 2025 — Empowering Elderly Independence
+          {t('landing.footer')}
         </p>
       </footer>
     </div>

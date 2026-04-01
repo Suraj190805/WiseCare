@@ -4,9 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Stethoscope, Users, Shield, ArrowRight, Eye, EyeOff, ChevronLeft } from 'lucide-react';
+import { useLanguage } from '@/lib/LanguageContext';
+import LanguageSwitcher from '@/lib/LanguageSwitcher';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState(null);
   const [pin, setPin] = useState(['', '', '', '']);
   const [email, setEmail] = useState('');
@@ -16,9 +19,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const roles = [
-    { id: 'patient', label: 'Patient', icon: '👴', desc: 'Elderly User', color: 'var(--accent-teal)' },
-    { id: 'caregiver', label: 'Caregiver', icon: '👨‍👩‍👧', desc: 'Family Member', color: 'var(--accent-purple)' },
-    { id: 'doctor', label: 'Doctor', icon: '👨‍⚕️', desc: 'Medical Professional', color: 'var(--primary)' },
+    { id: 'patient', label: t('login.patient'), icon: '👴', desc: 'Elderly User', color: 'var(--accent-teal)' },
+    { id: 'caregiver', label: t('login.caregiver'), icon: '👨‍👩‍👧', desc: 'Family Member', color: 'var(--accent-purple)' },
+    { id: 'doctor', label: t('login.doctor'), icon: '👨‍⚕️', desc: 'Medical Professional', color: 'var(--primary)' },
   ];
 
   const handlePinInput = (index, value) => {
@@ -132,7 +135,12 @@ export default function LoginPage() {
               🩺
             </motion.div>
             <h1 className="auth-title">CareCompanion AI</h1>
-            <p className="auth-subtitle">Your Intelligent Healthcare Companion</p>
+            <p className="auth-subtitle">{t('login.subtitle')}</p>
+          </div>
+
+          {/* Language switcher on login */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+            <LanguageSwitcher />
           </div>
 
           <AnimatePresence mode="wait">
@@ -145,7 +153,7 @@ export default function LoginPage() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '24px', fontSize: 'var(--font-size-sm)' }}>
-                  Select your role to continue
+                  {t('login.subtitle')}
                 </p>
                 <div className="role-selector">
                   {roles.map((role) => (

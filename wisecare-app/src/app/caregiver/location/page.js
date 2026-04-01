@@ -105,70 +105,47 @@ export default function CaregiverLocationPage() {
         <div>
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '20px' }}>
             <div style={{
-              height: '450px', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
-              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              height: '450px',
+              position: 'relative'
             }}>
-              {/* Grid lines */}
-              <div style={{ position: 'absolute', inset: 0, opacity: 0.06,
-                backgroundImage: 'linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)',
-                backgroundSize: '50px 50px'
-              }} />
+              {/* Real OpenStreetMap embed */}
+              <iframe
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${patient.location.lng - 0.005},${patient.location.lat - 0.003},${patient.location.lng + 0.005},${patient.location.lat + 0.003}&layer=mapnik&marker=${patient.location.lat},${patient.location.lng}`}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Patient Location Map"
+                loading="lazy"
+              />
 
-              {/* Safe zone circles */}
-              {safeZones.filter(z => z.active).map((zone, i) => (
-                <motion.div
-                  key={zone.id}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: i * 0.15, type: 'spring' }}
-                  style={{
-                    position: 'absolute',
-                    width: `${zone.radius * 0.8}px`, height: `${zone.radius * 0.8}px`,
-                    borderRadius: '50%',
-                    background: 'rgba(45, 212, 191, 0.08)',
-                    border: `2px dashed rgba(45, 212, 191, 0.3)`,
-                    top: `${30 + i * 15}%`, left: `${20 + i * 25}%`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}
-                >
-                  <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--accent-teal)', textAlign: 'center' }}>
-                    {zone.name}
-                  </span>
-                </motion.div>
-              ))}
-
-              {/* User marker */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: refreshing ? [1, 1.2, 1] : 1 }}
-                transition={refreshing ? { duration: 0.5, repeat: Infinity } : {}}
-                style={{
-                  width: '52px', height: '52px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--primary), var(--accent-teal))',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 30px rgba(79, 107, 255, 0.4)',
-                  border: '3px solid white', zIndex: 2
-                }}
-              >
-                <Navigation size={22} style={{ color: 'white' }} />
-              </motion.div>
-
-              {/* Label */}
+              {/* Label overlay */}
               <div style={{
                 position: 'absolute', bottom: '16px', left: '16px', right: '16px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
                 <div style={{
-                  padding: '8px 14px', background: 'rgba(0,0,0,0.6)', borderRadius: 'var(--border-radius-sm)',
-                  backdropFilter: 'blur(10px)', fontSize: 'var(--font-size-xs)'
+                  padding: '8px 14px', background: 'rgba(0,0,0,0.75)', borderRadius: 'var(--border-radius-sm)',
+                  backdropFilter: 'blur(10px)', fontSize: 'var(--font-size-xs)', color: 'white'
                 }}>
-                  📍 {patient.location.address}
+                  📍 {patient.location.address} • {patient.location.lat.toFixed(4)}, {patient.location.lng.toFixed(4)}
                 </div>
-                <div style={{
-                  padding: '8px 14px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: 'var(--border-radius-sm)',
-                  fontSize: 'var(--font-size-xs)', color: 'var(--accent-emerald)', fontWeight: 600
-                }}>
-                  ✓ Inside Safe Zone
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{
+                    padding: '8px 14px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: 'var(--border-radius-sm)',
+                    fontSize: 'var(--font-size-xs)', color: 'var(--accent-emerald)', fontWeight: 600
+                  }}>
+                    ✓ Inside Safe Zone
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${patient.location.lat},${patient.location.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '8px 14px', background: 'rgba(79, 107, 255, 0.2)', borderRadius: 'var(--border-radius-sm)',
+                      fontSize: 'var(--font-size-xs)', color: 'var(--primary-soft)', fontWeight: 600,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    Open in Maps ↗
+                  </a>
                 </div>
               </div>
             </div>

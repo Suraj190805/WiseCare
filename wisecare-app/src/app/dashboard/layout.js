@@ -11,12 +11,16 @@ import {
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_ALERTS, getGreeting } from '@/lib/mockData';
 import { ToastProvider } from '@/lib/Toast';
+import { useLanguage } from '@/lib/LanguageContext';
+import CrossRoleMessaging from '@/lib/CrossRoleMessaging';
+import LanguageSwitcher from '@/lib/LanguageSwitcher';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const { t } = useLanguage();
   const user = MOCK_USERS.patient;
   const unreadAlerts = MOCK_ALERTS.filter(a => !a.read).length;
 
@@ -25,13 +29,13 @@ export default function DashboardLayout({ children }) {
   }, [pathname]);
 
   const navItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/dashboard/medications', icon: Pill, label: 'Medications', badge: '3' },
-    { href: '/dashboard/diet', icon: UtensilsCrossed, label: 'Diet & Nutrition' },
-    { href: '/dashboard/chat', icon: MessageCircle, label: 'AI Companion' },
-    { href: '/dashboard/emergency', icon: AlertTriangle, label: 'Emergency SOS' },
-    { href: '/dashboard/location', icon: MapPin, label: 'Location' },
-    { href: '/dashboard/appointments', icon: Calendar, label: 'Appointments' },
+    { href: '/dashboard', icon: LayoutDashboard, label: t('nav.dashboard') },
+    { href: '/dashboard/medications', icon: Pill, label: t('nav.medications'), badge: '3' },
+    { href: '/dashboard/diet', icon: UtensilsCrossed, label: t('nav.diet') },
+    { href: '/dashboard/chat', icon: MessageCircle, label: t('nav.chat') },
+    { href: '/dashboard/emergency', icon: AlertTriangle, label: t('nav.emergency') },
+    { href: '/dashboard/location', icon: MapPin, label: t('nav.location') },
+    { href: '/dashboard/appointments', icon: Calendar, label: t('nav.appointments') },
   ];
 
   const isActive = (href) => {
@@ -71,13 +75,13 @@ export default function DashboardLayout({ children }) {
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">🩺</div>
           <div>
-            <div className="sidebar-logo-text">CareCompanion</div>
-            <div className="sidebar-logo-sub">AI Healthcare</div>
+            <div className="sidebar-logo-text">{t('brand.name')}</div>
+            <div className="sidebar-logo-sub">{t('brand.tagline')}</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          <div className="sidebar-section-label">Main Menu</div>
+          <div className="sidebar-section-label">{t('nav.mainMenu')}</div>
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -90,14 +94,14 @@ export default function DashboardLayout({ children }) {
             </Link>
           ))}
 
-          <div className="sidebar-section-label" style={{ marginTop: '16px' }}>Settings</div>
+          <div className="sidebar-section-label" style={{ marginTop: '16px' }}>{t('nav.settings')}</div>
           <Link href="/dashboard/settings" className={`nav-item ${pathname === '/dashboard/settings' ? 'active' : ''}`}>
             <Settings size={20} className="nav-item-icon" />
-            <span>Settings</span>
+            <span>{t('nav.settings')}</span>
           </Link>
           <div className="nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
             <LogOut size={20} className="nav-item-icon" />
-            <span>Logout</span>
+            <span>{t('nav.logout')}</span>
           </div>
         </nav>
 
@@ -111,7 +115,7 @@ export default function DashboardLayout({ children }) {
               style={{ width: '100%', gap: '8px' }}
             >
               <Phone size={18} />
-              Emergency SOS
+              {t('btn.emergencySOS')}
             </motion.button>
           </Link>
         </div>
@@ -168,7 +172,7 @@ export default function DashboardLayout({ children }) {
                   }}
                 >
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', fontWeight: 600 }}>
-                    Notifications
+                    {t('header.notifications')}
                   </div>
                   {MOCK_ALERTS.slice(0, 4).map(alert => (
                     <div key={alert.id} style={{
@@ -192,6 +196,8 @@ export default function DashboardLayout({ children }) {
             </AnimatePresence>
           </div>
 
+          <LanguageSwitcher compact />
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px 6px 6px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-full)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--accent-teal))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
               {user.avatar}
@@ -205,6 +211,7 @@ export default function DashboardLayout({ children }) {
       <main className="main-content" onClick={() => { setShowNotifications(false); }}>
         {children}
       </main>
+      <CrossRoleMessaging currentRole="patient" />
     </div>
     </ToastProvider>
   );

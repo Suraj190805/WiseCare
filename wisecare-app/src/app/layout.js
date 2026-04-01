@@ -1,6 +1,8 @@
 import './globals.css';
 import VoiceNavigationWrapper from '@/lib/VoiceNavigationWrapper';
 import MedicationReminderWrapper from '@/lib/MedicationReminderWrapper';
+import { LanguageProvider } from '@/lib/LanguageContext';
+import { SharedDataProvider } from '@/lib/SharedDataStore';
 
 export const metadata = {
   title: 'CareCompanion AI — Smart Elderly Care Platform',
@@ -16,10 +18,14 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>" />
       </head>
       <body>
-        <MedicationReminderWrapper>
-          {children}
-        </MedicationReminderWrapper>
-        <VoiceNavigationWrapper />
+        <LanguageProvider>
+          <SharedDataProvider>
+            <MedicationReminderWrapper>
+              {children}
+            </MedicationReminderWrapper>
+            <VoiceNavigationWrapper />
+          </SharedDataProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

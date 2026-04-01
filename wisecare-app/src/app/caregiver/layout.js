@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_ALERTS } from '@/lib/mockData';
 import { ToastProvider, useToast } from '@/lib/Toast';
+import { useLanguage } from '@/lib/LanguageContext';
+import LanguageSwitcher from '@/lib/LanguageSwitcher';
+import CrossRoleMessaging from '@/lib/CrossRoleMessaging';
 
 function CaregiverLayoutInner({ children }) {
   const router = useRouter();
@@ -19,6 +22,7 @@ function CaregiverLayoutInner({ children }) {
   const [alerts, setAlerts] = useState(MOCK_ALERTS);
   const [calling, setCalling] = useState(false);
   const { addToast } = useToast();
+  const { t } = useLanguage();
   const user = MOCK_USERS.caregiver;
   const patient = MOCK_USERS.patient;
   const unreadAlerts = alerts.filter(a => !a.read).length;
@@ -28,12 +32,12 @@ function CaregiverLayoutInner({ children }) {
   }, [pathname]);
 
   const navItems = [
-    { href: '/caregiver', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/caregiver/patients', icon: Users, label: 'Linked Patients' },
-    { href: '/caregiver/alerts', icon: Bell, label: 'Alerts', badge: String(unreadAlerts) },
-    { href: '/caregiver/location', icon: MapPin, label: 'Live Location' },
-    { href: '/caregiver/activity', icon: Activity, label: 'Activity Monitor' },
-    { href: '/caregiver/medications', icon: Pill, label: 'Medications' },
+    { href: '/caregiver', icon: LayoutDashboard, label: t('nav.dashboard') },
+    { href: '/caregiver/patients', icon: Users, label: t('nav.linkedPatients') },
+    { href: '/caregiver/alerts', icon: Bell, label: t('nav.alerts'), badge: String(unreadAlerts) },
+    { href: '/caregiver/location', icon: MapPin, label: t('nav.liveLocation') },
+    { href: '/caregiver/activity', icon: Activity, label: t('nav.activityMonitor') },
+    { href: '/caregiver/medications', icon: Pill, label: t('nav.medications') },
   ];
 
   const isActive = (href) => {
@@ -83,13 +87,13 @@ function CaregiverLayoutInner({ children }) {
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">🩺</div>
           <div>
-            <div className="sidebar-logo-text">CareCompanion</div>
-            <div className="sidebar-logo-sub">Caregiver Portal</div>
+            <div className="sidebar-logo-text">{t('brand.name')}</div>
+            <div className="sidebar-logo-sub">{t('brand.caregiverPortal')}</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          <div className="sidebar-section-label">Overview</div>
+          <div className="sidebar-section-label">{t('nav.overview')}</div>
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -102,9 +106,9 @@ function CaregiverLayoutInner({ children }) {
             </Link>
           ))}
 
-          <div className="sidebar-section-label" style={{ marginTop: '16px' }}>Account</div>
+          <div className="sidebar-section-label" style={{ marginTop: '16px' }}>{t('nav.account')}</div>
           <div className="nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-            <LogOut size={20} /> <span>Logout</span>
+            <LogOut size={20} /> <span>{t('nav.logout')}</span>
           </div>
         </nav>
 
@@ -119,7 +123,7 @@ function CaregiverLayoutInner({ children }) {
             style={{ width: '100%', gap: '8px', opacity: calling ? 0.7 : 1 }}
           >
             <Phone size={18} className={calling ? 'animate-pulse' : ''} />
-            {calling ? 'Calling...' : `Call ${patient.name.split(' ')[0]}`}
+            {calling ? t('btn.calling') : `${t('btn.call')} ${patient.name.split(' ')[0]}`}
           </motion.button>
         </div>
 
@@ -170,13 +174,13 @@ function CaregiverLayoutInner({ children }) {
                   }}
                 >
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Notifications</span>
+                    <span>{t('header.notifications')}</span>
                     {unreadAlerts > 0 && (
                       <button
                         onClick={markNotificationsRead}
                         style={{ background: 'none', border: 'none', color: 'var(--primary-soft)', cursor: 'pointer', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}
                       >
-                        Mark all read
+                        {t('header.markAllRead')}
                       </button>
                     )}
                   </div>
@@ -205,6 +209,8 @@ function CaregiverLayoutInner({ children }) {
             </AnimatePresence>
           </div>
 
+          <LanguageSwitcher compact />
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px 6px 6px', background: 'var(--bg-elevated)', borderRadius: 'var(--border-radius-full)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-purple), var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
               {user.avatar}
@@ -217,6 +223,7 @@ function CaregiverLayoutInner({ children }) {
       <main className="main-content" onClick={() => setShowNotifications(false)}>
         {children}
       </main>
+      <CrossRoleMessaging currentRole="caregiver" />
     </div>
   );
 }
