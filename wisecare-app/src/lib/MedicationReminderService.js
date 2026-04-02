@@ -2,52 +2,95 @@
 
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 import { MOCK_MEDICATIONS, MOCK_MED_LOGS, MOCK_USERS } from '@/lib/mockData';
+import { useSharedData } from '@/lib/SharedDataStore';
 
 // ─────────────────────────────────────────────────
 // Medication Reminder Context & Service
-// Handles: notifications, alarm sounds, escalation
+// Handles: notifications, alarm sounds, voice alerts,
+//          daily scheduling, escalation, due-time alerts
 // ─────────────────────────────────────────────────
 
 const ReminderContext = createContext(null);
 
 // ── Escalation stages ──
-// Stage 1: Browser notification + in-app alert + alarm sound
+// Stage 1: Browser notification + in-app alert + alarm sound + voice alert
 // Stage 2: 2 min later — Simulated phone call to patient
 // Stage 3: 2 min after that — Alert sent to Caregiver + Doctor
 const ESCALATION_DELAYS = {
-  NOTIFICATION: 0,           // Immediate
-  CALL_PATIENT: 2 * 60 * 1000,  // 2 min after notification
-  ALERT_CONTACTS: 4 * 60 * 1000, // 4 min after notification
+  NOTIFICATION: 0,
+  CALL_PATIENT: 2 * 60 * 1000,
+  ALERT_CONTACTS: 4 * 60 * 1000,
 };
 
-// For demo purposes, use shorter delays (seconds instead of minutes)
+// For demo purposes, use shorter delays
 const DEMO_ESCALATION_DELAYS = {
   NOTIFICATION: 0,
-  CALL_PATIENT: 30 * 1000,     // 30 seconds
-  ALERT_CONTACTS: 60 * 1000,   // 60 seconds
+  CALL_PATIENT: 30 * 1000,
+  ALERT_CONTACTS: 60 * 1000,
 };
+
+// ── Voice Alert System (Web Speech Synthesis) ──
+function speakAlert(message, options = {}) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.rate = options.rate || 0.9; // Slightly slower for elderly users
+    utterance.pitch = options.pitch || 1;
+    utterance.volume = options.volume || 1;
+    utterance.lang = options.lang || 'en-IN';
+
+    // Try to use a clear, natural voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v =>
+      v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google'))
+    ) || voices.find(v => v.lang.startsWith('en'));
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    window.speechSynthesis.speak(utterance);
+    return utterance;
+  } catch (e) {
+    // Speech synthesis not supported
+    return null;
+  }
+}
+
+// Stop any ongoing speech
+function stopSpeaking() {
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  } catch {}
+}
 
 // Play alarm sound using Web Audio API
 function playAlarmSound(duration = 2) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    
+
     // Create a two-tone alarm
     for (let i = 0; i < 3; i++) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.type = 'sine';
       const startTime = ctx.currentTime + (i * 0.6);
       osc.frequency.setValueAtTime(800, startTime);
       osc.frequency.setValueAtTime(600, startTime + 0.3);
-      
+
       gain.gain.setValueAtTime(0.2, startTime);
       gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.55);
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       osc.start(startTime);
       osc.stop(startTime + 0.55);
     }
@@ -60,22 +103,22 @@ function playAlarmSound(duration = 2) {
 function playUrgentAlarm() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    
+
     for (let i = 0; i < 5; i++) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.type = 'square';
       const startTime = ctx.currentTime + (i * 0.4);
       osc.frequency.setValueAtTime(1000, startTime);
       osc.frequency.setValueAtTime(700, startTime + 0.2);
-      
+
       gain.gain.setValueAtTime(0.15, startTime);
       gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.35);
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       osc.start(startTime);
       osc.stop(startTime + 0.35);
     }
@@ -92,7 +135,7 @@ function sendBrowserNotification(title, body, tag, onClick) {
       requireInteraction: true,
       silent: false,
     });
-    
+
     if (onClick) {
       notification.onclick = () => {
         window.focus();
@@ -100,7 +143,7 @@ function sendBrowserNotification(title, body, tag, onClick) {
         notification.close();
       };
     }
-    
+
     return notification;
   }
   return null;
@@ -118,24 +161,83 @@ async function requestNotificationPermission() {
   return false;
 }
 
-export function MedicationReminderProvider({ children }) {
-  // ── State ──
-  const [activeReminders, setActiveReminders] = useState([]);     // Currently firing reminders
-  const [escalationLog, setEscalationLog] = useState([]);         // History of escalation events
-  const [activeCallSimulation, setActiveCallSimulation] = useState(null); // Simulated incoming call
-  const [contactAlerts, setContactAlerts] = useState([]);         // Alerts sent to caregiver/doctor
-  const [notificationPermission, setNotificationPermission] = useState('unknown');
-  const [reminderSettings, setReminderSettings] = useState({
-    enabled: true,
-    soundEnabled: true,
-    demoMode: true,  // Use shorter delays for hackathon demo
-    escalationEnabled: true,
+// ── Daily Scheduling Helpers ──
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function generateDailyLogs(medications, todayKey) {
+  const logs = [];
+  medications.forEach(med => {
+    (med.times || []).forEach((time, idx) => {
+      logs.push({
+        id: `log_${todayKey}_${med.id}_${idx}`,
+        medId: med.id,
+        time,
+        status: 'pending',
+        date: todayKey,
+      });
+    });
   });
-  
+  return logs;
+}
+
+// ── Upcoming Reminder Helpers ──
+function getMinutesUntil(timeStr) {
+  const now = new Date();
+  const [h, m] = timeStr.split(':').map(Number);
+  const targetMinutes = h * 60 + m;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return targetMinutes - currentMinutes;
+}
+
+function formatTimeUntil(minutes) {
+  if (minutes <= 0) return 'Now';
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+
+export function MedicationReminderProvider({ children }) {
+  // ── Connect to SharedDataStore for Supabase persistence ──
+  const { addAlert: persistAlert, addActivity: persistActivity } = useSharedData();
+
+  // ── State ──
+  const [activeReminders, setActiveReminders] = useState([]);
+  const [escalationLog, setEscalationLog] = useState([]);
+  const [activeCallSimulation, setActiveCallSimulation] = useState(null);
+  const [contactAlerts, setContactAlerts] = useState([]);
+  const [notificationPermission, setNotificationPermission] = useState('unknown');
+  const [upcomingReminders, setUpcomingReminders] = useState([]);
+  const [dailyScheduleGenerated, setDailyScheduleGenerated] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('wisecare_reminder_settings');
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return {
+      enabled: true,
+      soundEnabled: true,
+      voiceEnabled: true,
+      demoMode: true,
+      escalationEnabled: true,
+      dailyRemindersEnabled: true,
+      preAlertMinutes: 5,        // Alert this many minutes before due time
+      voiceLanguage: 'en-IN',
+    };
+  });
+
   // ── Refs ──
-  const escalationTimersRef = useRef({});  // medLogId -> { callTimer, alertTimer }
+  const escalationTimersRef = useRef({});
   const checkIntervalRef = useRef(null);
-  // Load med logs from localStorage if available (keeps in sync with medications page)
+  const preAlertTimersRef = useRef({});    // For pre-due-time alerts
+  const dailyScheduleTimerRef = useRef(null);
+  const triggeredLogIdsRef = useRef(new Set()); // Track log IDs that already triggered reminders
   const medLogsRef = useRef(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -145,8 +247,7 @@ export function MedicationReminderProvider({ children }) {
     }
     return MOCK_MED_LOGS;
   });
-  const acknowledgedRef = useRef(new Set()); // Track acknowledged reminder IDs via ref
-  // Load dismissed log IDs from localStorage so they survive refresh
+  const acknowledgedRef = useRef(new Set());
   const dismissedLogIdsRef = useRef(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -156,10 +257,12 @@ export function MedicationReminderProvider({ children }) {
     }
     return new Set();
   });
-  const escalateToCallRef = useRef(null);     // Ref to latest escalateToCall function
-  const escalateToContactsRef = useRef(null); // Ref to latest escalateToContacts function
+  const preAlertedRef = useRef(new Set()); // Track logs that got pre-alerts
+  const voiceAlertedRef = useRef(new Set()); // Track logs that got voice daily summary
+  const escalateToCallRef = useRef(null);
+  const escalateToContactsRef = useRef(null);
 
-  // Initialize refs (useRef with function doesn't auto-call it)
+  // Initialize refs
   if (typeof medLogsRef.current === 'function') {
     medLogsRef.current = medLogsRef.current();
   }
@@ -167,53 +270,292 @@ export function MedicationReminderProvider({ children }) {
     dismissedLogIdsRef.current = dismissedLogIdsRef.current();
   }
 
-  // Helper to persist dismissed IDs
+  // Persist dismissed IDs
   const persistDismissedIds = () => {
     try {
       localStorage.setItem('wisecare_dismissed_log_ids', JSON.stringify([...dismissedLogIdsRef.current]));
     } catch {}
   };
 
-  // ── Request notification permission on mount ──
+  // Persist reminder settings
   useEffect(() => {
-    requestNotificationPermission().then(granted => {
-      setNotificationPermission(granted ? 'granted' : 'denied');
-    });
+    try {
+      localStorage.setItem('wisecare_reminder_settings', JSON.stringify(reminderSettings));
+    } catch {}
+  }, [reminderSettings]);
+
+  // ── Check notification permission on mount (don't auto-request) ──
+  useEffect(() => {
+    // Just check current state — don't request (browsers block auto-request without user gesture)
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission); // 'default', 'granted', or 'denied'
+    }
+
+    // Poll for permission changes (updates after user clicks Allow)
+    const permInterval = setInterval(() => {
+      if ('Notification' in window) {
+        setNotificationPermission(Notification.permission);
+      }
+    }, 2000);
+
+    // Preload voices for speech synthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+    return () => clearInterval(permInterval);
   }, []);
 
-  // ── Core: Check for due medications ──
-  const checkMedications = useCallback(() => {
-    if (!reminderSettings.enabled) return;
-    
+  // ── Daily Schedule Generation ──
+  // Auto-generate med logs for today if not already done
+  useEffect(() => {
+    if (!reminderSettings.dailyRemindersEnabled) return;
+
+    const todayKey = getTodayKey();
+    const lastGenDate = localStorage.getItem('wisecare_last_gen_date');
+
+    if (lastGenDate !== todayKey) {
+      // Load current medications
+      let meds;
+      try {
+        const storedMeds = localStorage.getItem('wisecare_medications');
+        meds = storedMeds ? JSON.parse(storedMeds) : MOCK_MEDICATIONS;
+      } catch {
+        meds = MOCK_MEDICATIONS;
+      }
+
+      const newLogs = generateDailyLogs(meds, todayKey);
+
+      // Merge with existing logs (keep past logs, add new ones for today)
+      const existingLogs = medLogsRef.current.filter(l => l.date !== todayKey && l.date !== 'today');
+      const mergedLogs = [...existingLogs, ...newLogs];
+
+      medLogsRef.current = mergedLogs;
+      try {
+        localStorage.setItem('wisecare_med_logs', JSON.stringify(mergedLogs));
+        localStorage.setItem('wisecare_last_gen_date', todayKey);
+      } catch {}
+
+      // Clear dismissed IDs for new day
+      dismissedLogIdsRef.current = new Set();
+      persistDismissedIds();
+
+      setDailyScheduleGenerated(true);
+
+      // Voice announce the daily schedule
+      if (reminderSettings.voiceEnabled) {
+        const medNames = [...new Set(meds.map(m => m.name))];
+        const totalDoses = newLogs.length;
+        setTimeout(() => {
+          speakAlert(
+            `Good ${getGreetingTime()}! You have ${totalDoses} medication doses scheduled today. ` +
+            `Your medications include ${medNames.join(', ')}. ` +
+            `I will remind you before each dose.`,
+            { lang: reminderSettings.voiceLanguage }
+          );
+        }, 2000);
+      }
+
+      addEscalationLog({
+        type: 'notification',
+        medName: 'Daily Schedule',
+        message: `Daily medication schedule generated: ${newLogs.length} doses for today`,
+        time: new Date(),
+        stage: 0,
+      });
+    }
+
+    // Set timer to regenerate at midnight
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-    
-    // Re-sync from localStorage to stay in sync with medications page
+    const midnight = new Date(now);
+    midnight.setDate(midnight.getDate() + 1);
+    midnight.setHours(0, 0, 10, 0);
+    const msUntilMidnight = midnight.getTime() - now.getTime();
+
+    dailyScheduleTimerRef.current = setTimeout(() => {
+      // Forces a re-render which triggers the daily generation
+      setDailyScheduleGenerated(false);
+    }, msUntilMidnight);
+
+    return () => {
+      if (dailyScheduleTimerRef.current) clearTimeout(dailyScheduleTimerRef.current);
+    };
+  }, [reminderSettings.dailyRemindersEnabled, dailyScheduleGenerated]);
+
+  // ── Detect newly-added medications mid-day ──
+  // Poll localStorage for medication changes and auto-generate reminder logs
+  useEffect(() => {
+    if (!reminderSettings.dailyRemindersEnabled) return;
+
+    let lastMedCount = 0;
+    try {
+      const storedMeds = localStorage.getItem('wisecare_medications');
+      if (storedMeds) lastMedCount = JSON.parse(storedMeds).length;
+    } catch {}
+
+    const pollInterval = setInterval(() => {
+      try {
+        const storedMeds = localStorage.getItem('wisecare_medications');
+        if (!storedMeds) return;
+        const meds = JSON.parse(storedMeds);
+        if (meds.length > lastMedCount) {
+          // New medication(s) detected — ensure they have reminder logs
+          const todayKey = getTodayKey();
+          const storedLogs = localStorage.getItem('wisecare_med_logs');
+          const currentLogs = storedLogs ? JSON.parse(storedLogs) : medLogsRef.current;
+          const existingMedIds = new Set(currentLogs.map(l => l.medId));
+
+          const newMeds = meds.filter(m => !existingMedIds.has(m.id));
+          if (newMeds.length > 0) {
+            const newLogs = generateDailyLogs(newMeds, todayKey);
+            // Also normalize any 'today' date logs to actual date key
+            const normalizedLogs = currentLogs.map(l =>
+              l.date === 'today' ? { ...l, date: todayKey } : l
+            );
+            const mergedLogs = [...normalizedLogs, ...newLogs];
+            medLogsRef.current = mergedLogs;
+            localStorage.setItem('wisecare_med_logs', JSON.stringify(mergedLogs));
+
+            addEscalationLog({
+              type: 'notification',
+              medName: newMeds.map(m => m.name).join(', '),
+              message: `New medication(s) detected: ${newMeds.map(m => m.name).join(', ')} — reminders scheduled`,
+              time: new Date(),
+              stage: 0,
+            });
+          }
+          lastMedCount = meds.length;
+        }
+      } catch {}
+    }, 5000); // Check every 5 seconds for new medications
+
+    return () => clearInterval(pollInterval);
+  }, [reminderSettings.dailyRemindersEnabled]);
+
+  // ── Upcoming Reminders Calculator ──
+  const updateUpcomingReminders = useCallback(() => {
     try {
       const stored = localStorage.getItem('wisecare_med_logs');
       if (stored) medLogsRef.current = JSON.parse(stored);
     } catch {}
 
-    const pendingLogs = medLogsRef.current.filter(log => log.status === 'pending');
-    
-    pendingLogs.forEach(log => {
-      // Skip logs that have already been dismissed/acknowledged
-      if (dismissedLogIdsRef.current.has(log.id)) return;
+    // Load meds from localStorage for accuracy
+    let meds;
+    try {
+      const storedMeds = localStorage.getItem('wisecare_medications');
+      meds = storedMeds ? JSON.parse(storedMeds) : MOCK_MEDICATIONS;
+    } catch {
+      meds = MOCK_MEDICATIONS;
+    }
 
-      const med = MOCK_MEDICATIONS.find(m => m.id === log.medId);
-      if (!med) return;
-      
-      // Check if it's time for this medication (within 1-minute window)
-      if (log.time === currentTimeStr || isTimePast(log.time, currentTimeStr)) {
-        // Only trigger if not already in active reminders
-        if (!activeReminders.find(r => r.logId === log.id)) {
-          triggerReminder(log, med);
+    const pending = medLogsRef.current.filter(l => l.status === 'pending');
+    const upcoming = pending
+      .map(log => {
+        const med = meds.find(m => m.id === log.medId);
+        if (!med) return null;
+        const minutesUntil = getMinutesUntil(log.time);
+        return {
+          ...log,
+          medName: med.name,
+          dosage: med.dosage,
+          instructions: med.instructions,
+          color: med.color,
+          minutesUntil,
+          timeFormatted: log.time,
+          timeUntilFormatted: formatTimeUntil(minutesUntil),
+          isDue: minutesUntil <= 0,
+          isUpcoming: minutesUntil > 0 && minutesUntil <= 60,
+          isSoon: minutesUntil > 0 && minutesUntil <= (reminderSettings.preAlertMinutes || 5),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.minutesUntil - b.minutesUntil);
+
+    setUpcomingReminders(upcoming);
+
+    // ── Pre-due-time voice alerts ──
+    if (reminderSettings.voiceEnabled) {
+      upcoming.forEach(item => {
+        if (item.isSoon && !preAlertedRef.current.has(item.id) && !dismissedLogIdsRef.current.has(item.id)) {
+          preAlertedRef.current.add(item.id);
+
+          speakAlert(
+            `Heads up! In ${item.minutesUntil} minutes, it will be time for ${item.medName}, ${item.dosage}. ${item.instructions}.`,
+            { lang: reminderSettings.voiceLanguage }
+          );
+
+          sendBrowserNotification(
+            `⏰ Coming up: ${item.medName}`,
+            `${item.dosage} due in ${item.minutesUntil} minutes. ${item.instructions}`,
+            `pre_${item.id}`
+          );
+
+          addEscalationLog({
+            type: 'notification',
+            medName: item.medName,
+            message: `Pre-alert: ${item.medName} ${item.dosage} due in ${item.minutesUntil} min`,
+            time: new Date(),
+            stage: 0,
+          });
         }
+      });
+    }
+  }, [reminderSettings.voiceEnabled, reminderSettings.preAlertMinutes, reminderSettings.voiceLanguage]);
+
+  // ── Core: Check for due medications ──
+  const checkMedications = useCallback(() => {
+    if (!reminderSettings.enabled) return;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+    const todayKey = getTodayKey();
+
+    // Re-sync from localStorage and normalize 'today' dates
+    try {
+      const stored = localStorage.getItem('wisecare_med_logs');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Normalize any logs with date: 'today' to actual date key
+        medLogsRef.current = parsed.map(l =>
+          l.date === 'today' ? { ...l, date: todayKey } : l
+        );
+      }
+    } catch {}
+
+    // Load meds
+    let meds;
+    try {
+      const storedMeds = localStorage.getItem('wisecare_medications');
+      meds = storedMeds ? JSON.parse(storedMeds) : MOCK_MEDICATIONS;
+    } catch {
+      meds = MOCK_MEDICATIONS;
+    }
+
+    const pendingLogs = medLogsRef.current.filter(log => log.status === 'pending');
+
+    pendingLogs.forEach(log => {
+      if (dismissedLogIdsRef.current.has(log.id)) return;
+      // Use ref to track triggered logs (avoids stale closure with activeReminders)
+      if (triggeredLogIdsRef.current.has(log.id)) return;
+
+      const med = meds.find(m => m.id === log.medId);
+      if (!med) return;
+
+      // Check if it's time for this medication
+      if (log.time === currentTimeStr || isTimePast(log.time, currentTimeStr)) {
+        triggeredLogIdsRef.current.add(log.id);
+        triggerReminder(log, med);
       }
     });
-  }, [reminderSettings.enabled, activeReminders]);
+
+    // Update upcoming reminders
+    updateUpcomingReminders();
+  }, [reminderSettings.enabled, updateUpcomingReminders]);
 
   // ── Check if scheduled time has passed ──
   function isTimePast(scheduledTime, currentTime) {
@@ -226,8 +568,7 @@ export function MedicationReminderProvider({ children }) {
   const triggerReminder = useCallback((log, med) => {
     const reminderId = `reminder_${log.id}_${Date.now()}`;
     const delays = reminderSettings.demoMode ? DEMO_ESCALATION_DELAYS : ESCALATION_DELAYS;
-    
-    // Stage 1: Notification + Sound + In-App Alert
+
     const reminder = {
       id: reminderId,
       logId: log.id,
@@ -240,14 +581,24 @@ export function MedicationReminderProvider({ children }) {
       triggeredAt: new Date(),
       acknowledged: false,
     };
-    
+
     setActiveReminders(prev => [...prev, reminder]);
-    
+
     // Play alarm sound
     if (reminderSettings.soundEnabled) {
       playAlarmSound();
     }
-    
+
+    // 🔊 Voice Alert — Speak the medication reminder aloud
+    if (reminderSettings.voiceEnabled) {
+      setTimeout(() => {
+        speakAlert(
+          `Attention! It's time to take your medication. Please take ${med.name}, ${med.dosage}. ${med.instructions}. Tap the Taken button to confirm.`,
+          { lang: reminderSettings.voiceLanguage, rate: 0.85 }
+        );
+      }, 2000); // Short delay so alarm sound finishes first
+    }
+
     // Send browser notification
     sendBrowserNotification(
       `💊 Time for ${med.name}`,
@@ -255,7 +606,7 @@ export function MedicationReminderProvider({ children }) {
       `med_${log.id}`,
       () => acknowledgeReminder(reminderId)
     );
-    
+
     // Log the event
     addEscalationLog({
       type: 'notification',
@@ -265,32 +616,28 @@ export function MedicationReminderProvider({ children }) {
       stage: 1,
     });
 
-    // ── Setup escalation timers (use refs to avoid stale closures) ──
+    // ── Setup escalation timers ──
     if (reminderSettings.escalationEnabled) {
       const callTimer = setTimeout(() => {
-        // Stage 2: Simulated phone call (call via ref for latest function)
         if (escalateToCallRef.current) {
           escalateToCallRef.current(reminderId, med, log);
         }
       }, delays.CALL_PATIENT);
-      
+
       const alertTimer = setTimeout(() => {
-        // Stage 3: Alert caregiver & doctor (call via ref for latest function)
         if (escalateToContactsRef.current) {
           escalateToContactsRef.current(reminderId, med, log);
         }
       }, delays.ALERT_CONTACTS);
-      
+
       escalationTimersRef.current[reminderId] = { callTimer, alertTimer };
     }
   }, [reminderSettings]);
 
   // ── Stage 2: Simulate phone call to patient ──
   const escalateToCall = useCallback((reminderId, med, log) => {
-    // Check if already acknowledged via ref (avoids stale closure)
     if (acknowledgedRef.current.has(reminderId)) return;
 
-    // Update stage in state
     setActiveReminders(prev => {
       const reminder = prev.find(r => r.id === reminderId);
       if (!reminder || reminder.acknowledged) return prev;
@@ -299,6 +646,16 @@ export function MedicationReminderProvider({ children }) {
 
     // Play urgent alarm
     playUrgentAlarm();
+
+    // 🔊 Voice escalation alert
+    if (reminderSettings.voiceEnabled) {
+      setTimeout(() => {
+        speakAlert(
+          `Important! You have not taken ${med.name}, ${med.dosage}. This is a follow-up reminder. Please take your medication now.`,
+          { lang: reminderSettings.voiceLanguage, rate: 0.85, pitch: 1.1 }
+        );
+      }, 2500);
+    }
 
     // Show simulated incoming call UI
     setActiveCallSimulation({
@@ -310,7 +667,6 @@ export function MedicationReminderProvider({ children }) {
       startTime: new Date(),
     });
 
-    // Browser notification for call
     sendBrowserNotification(
       `📞 Incoming Call — Medication Reminder`,
       `You haven't taken ${med.name} ${med.dosage}. Please take your medication.`,
@@ -324,16 +680,14 @@ export function MedicationReminderProvider({ children }) {
       time: new Date(),
       stage: 2,
     });
-  }, []);
+  }, [reminderSettings.voiceEnabled, reminderSettings.voiceLanguage]);
 
-  // Keep refs up to date
   useEffect(() => {
     escalateToCallRef.current = escalateToCall;
   }, [escalateToCall]);
 
   // ── Stage 3: Alert caregiver & doctor ──
   const escalateToContacts = useCallback((reminderId, med, log) => {
-    // Check if already acknowledged via ref
     if (acknowledgedRef.current.has(reminderId)) return;
 
     setActiveReminders(prev => {
@@ -348,7 +702,6 @@ export function MedicationReminderProvider({ children }) {
 
     const alertTime = new Date();
 
-    // Create caregiver alert
     const caregiverAlert = {
       id: `ca_${Date.now()}`,
       recipient: 'caregiver',
@@ -363,7 +716,6 @@ export function MedicationReminderProvider({ children }) {
       status: 'sent',
     };
 
-    // Create doctor alert
     const doctorAlert = {
       id: `da_${Date.now() + 1}`,
       recipient: 'doctor',
@@ -379,11 +731,16 @@ export function MedicationReminderProvider({ children }) {
     };
 
     setContactAlerts(prev => [...prev, caregiverAlert, doctorAlert]);
-
-    // Dismiss call overlay if still showing
     setActiveCallSimulation(null);
 
-    // Browser notification
+    // 🔊 Voice alert for escalation
+    if (reminderSettings.voiceEnabled) {
+      speakAlert(
+        `Alert sent! ${patient.name} missed ${med.name}. Caregiver ${caregiver.name} and Doctor ${doctor.name} have been notified.`,
+        { lang: reminderSettings.voiceLanguage }
+      );
+    }
+
     sendBrowserNotification(
       `🚨 Caregiver & Doctor Alerted`,
       `${patient.name} missed ${med.name}. ${caregiver.name} and ${doctor.name} have been notified.`,
@@ -397,17 +754,18 @@ export function MedicationReminderProvider({ children }) {
       time: alertTime,
       stage: 3,
     });
-  }, []);
+  }, [reminderSettings.voiceEnabled, reminderSettings.voiceLanguage]);
 
-  // Keep refs up to date
   useEffect(() => {
     escalateToContactsRef.current = escalateToContacts;
   }, [escalateToContacts]);
 
   // ── Acknowledge a reminder (stops escalation) ──
   const acknowledgeReminder = useCallback((reminderId) => {
-    // Mark as acknowledged in ref immediately (prevents escalation timers from firing)
     acknowledgedRef.current.add(reminderId);
+
+    // Stop any ongoing voice alert
+    stopSpeaking();
 
     // Clear escalation timers
     const timers = escalationTimersRef.current[reminderId];
@@ -417,23 +775,27 @@ export function MedicationReminderProvider({ children }) {
       delete escalationTimersRef.current[reminderId];
     }
 
-    // Update reminder state — get the medName before removing
     setActiveReminders(prev => {
       const reminder = prev.find(r => r.id === reminderId);
       if (reminder) {
-        // Mark this log ID as dismissed so it never re-triggers
         dismissedLogIdsRef.current.add(reminder.logId);
-        
-        // Also mark the med log as taken in medLogsRef to prevent re-triggering
+
         medLogsRef.current = medLogsRef.current.map(l =>
           l.id === reminder.logId ? { ...l, status: 'taken' } : l
         );
 
-        // Persist to localStorage so it survives refresh
         persistDismissedIds();
         try {
           localStorage.setItem('wisecare_med_logs', JSON.stringify(medLogsRef.current));
         } catch {}
+
+        // 🔊 Voice confirmation
+        if (reminderSettings.voiceEnabled) {
+          speakAlert(
+            `Great job! ${reminder.medName} has been marked as taken. Keep up the good work!`,
+            { lang: reminderSettings.voiceLanguage }
+          );
+        }
 
         addEscalationLog({
           type: 'acknowledged',
@@ -446,16 +808,14 @@ export function MedicationReminderProvider({ children }) {
       return prev.map(r => r.id === reminderId ? { ...r, acknowledged: true } : r);
     });
 
-    // Dismiss call simulation if showing
-    setActiveCallSimulation(prev => 
+    setActiveCallSimulation(prev =>
       prev && prev.id === reminderId ? null : prev
     );
 
-    // Remove from active after animation
     setTimeout(() => {
       setActiveReminders(prev => prev.filter(r => r.id !== reminderId));
     }, 500);
-  }, []);
+  }, [reminderSettings.voiceEnabled, reminderSettings.voiceLanguage]);
 
   // ── Dismiss call simulation ──
   const dismissCall = useCallback((reminderId) => {
@@ -468,9 +828,17 @@ export function MedicationReminderProvider({ children }) {
     acknowledgeReminder(reminderId);
   }, [acknowledgeReminder]);
 
-  // ── Trigger a demo reminder immediately (for testing) ──
+  // ── Trigger a demo reminder immediately ──
   const triggerDemoReminder = useCallback((medId) => {
-    const med = MOCK_MEDICATIONS.find(m => m.id === (medId || 'med_001'));
+    let meds;
+    try {
+      const storedMeds = localStorage.getItem('wisecare_medications');
+      meds = storedMeds ? JSON.parse(storedMeds) : MOCK_MEDICATIONS;
+    } catch {
+      meds = MOCK_MEDICATIONS;
+    }
+
+    const med = meds.find(m => m.id === (medId || 'med_001'));
     if (!med) return;
 
     const fakeLog = {
@@ -483,27 +851,74 @@ export function MedicationReminderProvider({ children }) {
     triggerReminder(fakeLog, med);
   }, [triggerReminder]);
 
-  // ── Add to escalation log ──
+  // ── Speak daily summary on demand ──
+  const speakDailySummary = useCallback(() => {
+    if (!reminderSettings.voiceEnabled) return;
+
+    let meds;
+    try {
+      const storedMeds = localStorage.getItem('wisecare_medications');
+      meds = storedMeds ? JSON.parse(storedMeds) : MOCK_MEDICATIONS;
+    } catch {
+      meds = MOCK_MEDICATIONS;
+    }
+
+    const pending = upcomingReminders.filter(r => !r.isDue);
+    const taken = medLogsRef.current.filter(l => l.status === 'taken');
+    const total = medLogsRef.current.length;
+
+    let message = `Here is your medication summary. `;
+    message += `You have taken ${taken.length} out of ${total} doses today. `;
+
+    if (pending.length > 0) {
+      message += `Your next medication is ${pending[0].medName}, ${pending[0].dosage}, `;
+      message += pending[0].minutesUntil > 0
+        ? `due in ${pending[0].timeUntilFormatted}. `
+        : `which is due now. `;
+    } else {
+      message += `You have completed all your medications for today. Great job! `;
+    }
+
+    speakAlert(message, { lang: reminderSettings.voiceLanguage, rate: 0.85 });
+  }, [upcomingReminders, reminderSettings.voiceEnabled, reminderSettings.voiceLanguage]);
+
+  // ── Add to escalation log + persist to Supabase ──
   const addEscalationLog = (entry) => {
     setEscalationLog(prev => [entry, ...prev.slice(0, 49)]);
+
+    // Persist to Supabase via SharedDataStore
+    if (persistAlert && entry.stage >= 1) {
+      persistAlert({
+        type: 'medication',
+        message: entry.message,
+        severity: entry.stage >= 3 ? 'danger' : entry.stage >= 2 ? 'warning' : 'info',
+        source: 'reminder_service',
+      });
+    }
+    if (persistActivity && entry.stage >= 1) {
+      persistActivity({
+        type: 'medication',
+        message: entry.message,
+        role: entry.type === 'contact_alert' ? 'system' : 'patient',
+        icon: entry.stage >= 3 ? '🚨' : entry.stage >= 2 ? '📞' : '💊',
+      });
+    }
   };
 
-  // ── Update med logs (called by medications page when status changes) ──
+  // ── Update med logs ──
   const updateMedLogs = useCallback((newLogs) => {
     medLogsRef.current = newLogs;
   }, []);
 
-  // ── Periodic check (every 30 seconds) ──
+  // ── Periodic check (every 10 seconds for responsive reminders) ──
   useEffect(() => {
     if (!reminderSettings.enabled) return;
-    
-    checkIntervalRef.current = setInterval(checkMedications, 30000);
-    // Also check immediately on mount
+
+    checkIntervalRef.current = setInterval(checkMedications, 10000);
     checkMedications();
-    
+
     return () => {
       clearInterval(checkIntervalRef.current);
-      // Clear all escalation timers
       Object.values(escalationTimersRef.current).forEach(t => {
         clearTimeout(t.callTimer);
         clearTimeout(t.alertTimer);
@@ -519,6 +934,8 @@ export function MedicationReminderProvider({ children }) {
     contactAlerts,
     notificationPermission,
     reminderSettings,
+    upcomingReminders,
+    dailyScheduleGenerated,
     // Actions
     acknowledgeReminder,
     dismissCall,
@@ -526,6 +943,9 @@ export function MedicationReminderProvider({ children }) {
     triggerDemoReminder,
     updateMedLogs,
     setReminderSettings,
+    speakDailySummary,
+    speakAlert,
+    stopSpeaking,
   };
 
   return (
@@ -535,10 +955,16 @@ export function MedicationReminderProvider({ children }) {
   );
 }
 
+function getGreetingTime() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+
 export function useReminders() {
   const ctx = useContext(ReminderContext);
   if (!ctx) {
-    // Return a no-op fallback if used outside provider
     return {
       activeReminders: [],
       escalationLog: [],
@@ -546,12 +972,17 @@ export function useReminders() {
       contactAlerts: [],
       notificationPermission: 'unknown',
       reminderSettings: { enabled: false },
+      upcomingReminders: [],
+      dailyScheduleGenerated: false,
       acknowledgeReminder: () => {},
       dismissCall: () => {},
       answerCall: () => {},
       triggerDemoReminder: () => {},
       updateMedLogs: () => {},
       setReminderSettings: () => {},
+      speakDailySummary: () => {},
+      speakAlert: () => {},
+      stopSpeaking: () => {},
     };
   }
   return ctx;

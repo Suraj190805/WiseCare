@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   Users, Calendar, AlertTriangle, Heart, Activity,
-  TrendingDown, ChevronRight, Video, Eye, FileText
+  TrendingDown, ChevronRight, Video, Eye, FileText,
+  Watch, Bluetooth, Droplets, Thermometer, Footprints
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { MOCK_USERS, getGreeting, getCurrentDate } from '@/lib/mockData';
@@ -201,6 +202,92 @@ export default function DoctorDashboardPage() {
 
         {/* Activity Feed */}
         <ActivityFeed maxItems={8} showFilter={true} />
+
+        {/* Patient Wearable Vitals */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Watch size={18} style={{ color: 'var(--accent-teal)' }} /> Patient Wearable Vitals
+            </h2>
+            <span className="badge badge-info" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Bluetooth size={10} />
+              {vitals.heartRate?.source === 'wearable' ? '🟢 Live' : '⏸ No Device'}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+            {[
+              {
+                label: 'Heart Rate',
+                value: vitals.heartRate?.source === 'wearable' ? `${vitals.heartRate.current} bpm` : '— bpm',
+                icon: Heart,
+                color: '#F43F5E',
+                source: vitals.heartRate?.source,
+                status: vitals.heartRate?.current >= 60 && vitals.heartRate?.current <= 100 ? 'Normal' : 'Check'
+              },
+              {
+                label: 'SpO₂',
+                value: vitals.spo2?.source === 'wearable' ? `${vitals.spo2.current}%` : `${vitals.spo2?.current || 97}%`,
+                icon: Droplets,
+                color: '#2DD4BF',
+                source: vitals.spo2?.source,
+                status: (vitals.spo2?.current || 97) >= 95 ? 'Normal' : 'Low'
+              },
+              {
+                label: 'Temperature',
+                value: vitals.temperature?.source === 'wearable' ? `${vitals.temperature.current}°F` : '—°F',
+                icon: Thermometer,
+                color: '#F59E0B',
+                source: vitals.temperature?.source,
+                status: vitals.temperature?.current >= 97.8 && vitals.temperature?.current <= 99.1 ? 'Normal' : 'Check'
+              },
+              {
+                label: 'Blood Pressure',
+                value: vitals.bloodPressure?.source === 'wearable' ? vitals.bloodPressure.current : vitals.bloodPressure?.current || '—',
+                icon: Activity,
+                color: '#A855F7',
+                source: vitals.bloodPressure?.source,
+                status: 'Monitor'
+              },
+            ].map((v, i) => (
+              <div key={i} style={{
+                padding: '14px 16px',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--border-radius-sm)',
+                borderLeft: v.source === 'wearable' ? `3px solid ${v.color}` : '3px solid var(--border-subtle)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <v.icon size={16} style={{ color: v.color }} />
+                    <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{v.label}</span>
+                  </div>
+                  {v.source === 'wearable' && (
+                    <span style={{ fontSize: '0.55rem', color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <Watch size={8} /> Wearable
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700 }}>{v.value}</div>
+                <span className="badge" style={{ background: `${v.status === 'Normal' ? 'var(--accent-emerald)' : 'var(--accent-amber)'}18`, color: v.status === 'Normal' ? 'var(--accent-emerald)' : 'var(--accent-amber)', fontSize: '0.6rem', marginTop: '4px' }}>
+                  {v.status}
+                </span>
+              </div>
+            ))}
+          </div>
+          {vitals.heartRate?.source !== 'wearable' && (
+            <div style={{
+              marginTop: '14px', padding: '12px 16px',
+              background: 'rgba(79, 107, 255, 0.05)',
+              border: '1px solid rgba(79, 107, 255, 0.15)',
+              borderRadius: 'var(--border-radius-sm)',
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--text-secondary)',
+              display: 'flex', alignItems: 'center', gap: '8px'
+            }}>
+              <Watch size={14} style={{ color: 'var(--primary-soft)' }} />
+              Patient has not connected a wearable device yet. Wearable data will appear here automatically once connected.
+            </div>
+          )}
+        </div>
 
         {/* Drug Interactions */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>

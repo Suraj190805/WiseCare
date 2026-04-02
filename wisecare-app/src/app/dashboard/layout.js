@@ -7,13 +7,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Pill, UtensilsCrossed, MessageCircle,
   AlertTriangle, MapPin, Calendar, Settings, LogOut,
-  Menu, X, Bell, Phone
+  Menu, X, Bell, Phone, Watch
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_ALERTS, getGreeting } from '@/lib/mockData';
 import { ToastProvider } from '@/lib/Toast';
 import { useLanguage } from '@/lib/LanguageContext';
 import CrossRoleMessaging from '@/lib/CrossRoleMessaging';
 import LanguageSwitcher from '@/lib/LanguageSwitcher';
+import { WearableProvider } from '@/lib/WearableService';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function DashboardLayout({ children }) {
     { href: '/dashboard/emergency', icon: AlertTriangle, label: t('nav.emergency') },
     { href: '/dashboard/location', icon: MapPin, label: t('nav.location') },
     { href: '/dashboard/appointments', icon: Calendar, label: t('nav.appointments') },
+    { href: '/dashboard/wearable', icon: Watch, label: 'Wearable' },
   ];
 
   const isActive = (href) => {
@@ -209,7 +211,9 @@ export default function DashboardLayout({ children }) {
 
       {/* Main Content */}
       <main className="main-content" onClick={() => { setShowNotifications(false); }}>
-        {children}
+        <WearableProvider>
+          {children}
+        </WearableProvider>
       </main>
       <CrossRoleMessaging currentRole="patient" />
     </div>

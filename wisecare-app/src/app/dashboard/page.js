@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   Pill, Heart, Activity, Droplets, Thermometer, Scale,
   MessageCircle, AlertTriangle, MapPin, UtensilsCrossed,
   Calendar, TrendingUp, TrendingDown, Minus, Clock,
-  ChevronRight, CheckCircle2, XCircle, Sun
+  ChevronRight, CheckCircle2, XCircle, Sun, ClipboardCheck, CircleDot
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import {
@@ -19,7 +19,14 @@ import ActivityFeed from '@/lib/ActivityFeed';
 
 export default function DashboardPage() {
   const user = MOCK_USERS.patient;
-  const { medications, medLogs, vitals, alerts, appointments, adherenceRate, doctorNotes } = useSharedData();
+  const { medications, medLogs, vitals, alerts, appointments, adherenceRate, doctorNotes, performCheckIn, todayCheckins, missedCheckins, checkinSchedule } = useSharedData();
+  const [checkinFeedback, setCheckinFeedback] = useState(null);
+
+  const handleCheckIn = useCallback(() => {
+    const result = performCheckIn();
+    setCheckinFeedback(result);
+    setTimeout(() => setCheckinFeedback(null), 3000);
+  }, [performCheckIn]);
 
   const pendingMeds = medLogs.filter(l => l.status === 'pending');
   const takenMeds = medLogs.filter(l => l.status === 'taken');
@@ -139,6 +146,88 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* Daily Check-In */}
+          <motion.div className="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ClipboardCheck size={20} style={{ color: 'var(--accent-teal)' }} /> Daily Check-In
+              </h2>
+              <span className="badge badge-info">{todayCheckins.length}/3 done</span>
+            </div>
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              Check in 3 times daily so your caregiver knows you're doing well
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+              {checkinSchedule.map((slot) => {
+                const done = todayCheckins.some(c => c.slotId === slot.id);
+                const checkin = todayCheckins.find(c => c.slotId === slot.id);
+                const currentHour = new Date().getHours();
+                const isActive = currentHour >= slot.startHour && currentHour < slot.endHour;
+                const isMissed = currentHour >= slot.endHour && !done;
+                return (
+                  <div key={slot.id} style={{
+                    padding: '14px 12px',
+                    background: done ? 'rgba(16, 185, 129, 0.08)' : isMissed ? 'rgba(244, 63, 94, 0.06)' : isActive ? 'rgba(79, 107, 255, 0.06)' : 'var(--bg-elevated)',
+                    border: `1px solid ${done ? 'rgba(16, 185, 129, 0.25)' : isMissed ? 'rgba(244, 63, 94, 0.2)' : isActive ? 'rgba(79, 107, 255, 0.2)' : 'var(--border-subtle)'}`,
+                    borderRadius: 'var(--border-radius-sm)',
+                    textAlign: 'center',
+                    position: 'relative',
+                  }}>
+                    <div style={{ marginBottom: '6px' }}>
+                      {done ? <CheckCircle2 size={20} style={{ color: 'var(--accent-emerald)' }} /> : isMissed ? <XCircle size={20} style={{ color: 'var(--accent-rose)' }} /> : isActive ? <CircleDot size={20} style={{ color: 'var(--primary-soft)' }} /> : <Clock size={18} style={{ color: 'var(--text-muted)' }} />}
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{slot.label}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {slot.startHour > 12 ? `${slot.startHour - 12} PM` : `${slot.startHour} AM`} – {slot.endHour > 12 ? `${slot.endHour - 12} PM` : `${slot.endHour} AM`}
+                    </div>
+                    {done && (
+                      <div style={{ fontSize: '0.6rem', color: 'var(--accent-emerald)', marginTop: '4px', fontWeight: 600 }}>
+                        ✓ {checkin.time}
+                      </div>
+                    )}
+                    {isMissed && (
+                      <div style={{ fontSize: '0.6rem', color: 'var(--accent-rose)', marginTop: '4px', fontWeight: 600 }}>
+                        Missed
+                      </div>
+                    )}
+                    {isActive && !done && (
+                      <div style={{ fontSize: '0.6rem', color: 'var(--primary-soft)', marginTop: '4px', fontWeight: 600 }}>
+                        Active Now
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <motion.button
+              className="btn btn-primary w-full"
+              whileTap={{ scale: 0.97 }}
+              onClick={handleCheckIn}
+              style={{ width: '100%', gap: '8px', fontWeight: 600 }}
+            >
+              <ClipboardCheck size={18} />
+              {checkinFeedback?.success ? '✓ Checked In!' : 'Check In Now'}
+            </motion.button>
+            {checkinFeedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  marginTop: '10px',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--border-radius-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  background: checkinFeedback.success ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                  color: checkinFeedback.success ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                  border: `1px solid ${checkinFeedback.success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}`,
+                  textAlign: 'center', fontWeight: 500,
+                }}
+              >
+                {checkinFeedback.message}
+              </motion.div>
+            )}
+          </motion.div>
 
           {/* Activity Feed */}
           <ActivityFeed maxItems={6} showFilter={false} compact={true} />

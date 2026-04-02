@@ -159,14 +159,14 @@ export default function CaregiverPatientsPage() {
               { label: 'SpO2', value: `${vitals.spo2?.current || '--'}%`, icon: Activity, color: 'teal', trend: 'Normal' },
               { label: 'Active Alerts', value: `${sharedAlerts.filter(a => !a.read).length}`, icon: Eye, color: 'primary', trend: 'This session' },
             ].map((v, j) => (
-              <div key={j} className={`stat-card ${v.color}`} style={{ padding: '16px' }}>
+              <div key={j} className={`stat-card ${v.color}`} style={{ padding: '16px' }} suppressHydrationWarning>
                 <div className={`stat-icon ${v.color}`} style={{ width: '36px', height: '36px', borderRadius: '8px' }}>
                   <v.icon size={18} />
                 </div>
-                <div className="stat-value" style={{ fontSize: 'var(--font-size-xl)' }}>{v.value}</div>
+                <div className="stat-value" style={{ fontSize: 'var(--font-size-xl)' }} suppressHydrationWarning>{v.value}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="stat-label" style={{ fontSize: 'var(--font-size-xs)' }}>{v.label}</span>
-                  <span className="stat-trend up" style={{ fontSize: '0.7rem' }}>{v.trend}</span>
+                  <span className="stat-trend up" style={{ fontSize: '0.7rem' }} suppressHydrationWarning>{v.trend}</span>
                 </div>
               </div>
             ))}
