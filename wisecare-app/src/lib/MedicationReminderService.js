@@ -238,6 +238,7 @@ export function MedicationReminderProvider({ children }) {
   const preAlertTimersRef = useRef({});    // For pre-due-time alerts
   const dailyScheduleTimerRef = useRef(null);
   const triggeredLogIdsRef = useRef(new Set()); // Track log IDs that already triggered reminders
+  const startupTimeRef = useRef(Date.now()); // Grace period: skip past-due meds on initial load
   const medLogsRef = useRef(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -345,19 +346,8 @@ export function MedicationReminderProvider({ children }) {
 
       setDailyScheduleGenerated(true);
 
-      // Voice announce the daily schedule
-      if (reminderSettings.voiceEnabled) {
-        const medNames = [...new Set(meds.map(m => m.name))];
-        const totalDoses = newLogs.length;
-        setTimeout(() => {
-          speakAlert(
-            `Good ${getGreetingTime()}! You have ${totalDoses} medication doses scheduled today. ` +
-            `Your medications include ${medNames.join(', ')}. ` +
-            `I will remind you before each dose.`,
-            { lang: reminderSettings.voiceLanguage }
-          );
-        }, 2000);
-      }
+      // Voice announce disabled on auto-load to avoid flooding
+      // User can still trigger speakDailySummary() manually
 
       addEscalationLog({
         type: 'notification',
@@ -537,6 +527,10 @@ export function MedicationReminderProvider({ children }) {
     }
 
     const pendingLogs = medLogsRef.current.filter(log => log.status === 'pending');
+    
+    // Grace period: within the first 30 seconds after page load, skip past-due meds
+    // This prevents the flood of reminders when opening the app
+    const isStartupGrace = (Date.now() - startupTimeRef.current) < 30000;
 
     pendingLogs.forEach(log => {
       if (dismissedLogIdsRef.current.has(log.id)) return;
@@ -546,10 +540,21 @@ export function MedicationReminderProvider({ children }) {
       const med = meds.find(m => m.id === log.medId);
       if (!med) return;
 
-      // Check if it's time for this medication
-      if (log.time === currentTimeStr || isTimePast(log.time, currentTimeStr)) {
+      const isPast = isTimePast(log.time, currentTimeStr);
+      const isDueNow = log.time === currentTimeStr;
+
+      // Only trigger for current-minute medications
+      // Past-due meds during startup grace are silently skipped (won't flood)
+      if (isDueNow) {
         triggeredLogIdsRef.current.add(log.id);
         triggerReminder(log, med);
+      } else if (isPast && !isStartupGrace) {
+        // After grace period, if a med becomes past-due (user kept app open), trigger once
+        triggeredLogIdsRef.current.add(log.id);
+        triggerReminder(log, med);
+      } else if (isPast && isStartupGrace) {
+        // Silently mark as triggered so it won't fire later
+        triggeredLogIdsRef.current.add(log.id);
       }
     });
 
