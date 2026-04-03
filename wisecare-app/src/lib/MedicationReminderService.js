@@ -534,26 +534,19 @@ export function MedicationReminderProvider({ children }) {
 
     pendingLogs.forEach(log => {
       if (dismissedLogIdsRef.current.has(log.id)) return;
-      // Use ref to track triggered logs (avoids stale closure with activeReminders)
       if (triggeredLogIdsRef.current.has(log.id)) return;
 
       const med = meds.find(m => m.id === log.medId);
       if (!med) return;
 
-      const isPast = isTimePast(log.time, currentTimeStr);
       const isDueNow = log.time === currentTimeStr;
 
-      // Only trigger for current-minute medications
-      // Past-due meds during startup grace are silently skipped (won't flood)
       if (isDueNow) {
+        // Only trigger for medications due at this EXACT minute
         triggeredLogIdsRef.current.add(log.id);
         triggerReminder(log, med);
-      } else if (isPast && !isStartupGrace) {
-        // After grace period, if a med becomes past-due (user kept app open), trigger once
-        triggeredLogIdsRef.current.add(log.id);
-        triggerReminder(log, med);
-      } else if (isPast && isStartupGrace) {
-        // Silently mark as triggered so it won't fire later
+      } else if (isTimePast(log.time, currentTimeStr)) {
+        // Past-due: silently mark as triggered so they NEVER pop up
         triggeredLogIdsRef.current.add(log.id);
       }
     });
