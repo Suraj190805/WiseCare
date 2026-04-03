@@ -100,7 +100,7 @@ export function SharedDataProvider({ children }) {
       // Seed the database (idempotent — only inserts if empty)
       await api('seed', { method: 'POST' });
 
-      // Load all data from MongoDB in parallel
+      // Load all data from Supabase in parallel
       const [meds, logs, vit, alt, apts, notes, msgs, acts, ckins] = await Promise.all([
         api('medications'),
         api('med-logs'),
