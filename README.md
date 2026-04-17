@@ -1,3 +1,7 @@
+Live Link : CareCompanion AI — Smart Elderly Care Platform https://share.google/2fmjdtVdxRGYvzqJ1
+
+
+
 # CareCompanion AI 🧓💙
 ### Smart Elderly Independence & Safety Platform
 
