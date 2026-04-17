@@ -134,15 +134,14 @@ To build a trusted AI healthcare companion that enables elderly individuals to:
 - REST API
 
 ### AI & ML
-- OpenAI / GPT
 - LangChain
 - Whisper (Speech Recognition)
 - Scikit-learn
 
 ### Database
-- PostgreSQL
-- MongoDB
-- Redis
+- NoSQL
+- Supabase
+
 
 ### Cloud
 - AWS / GCP
