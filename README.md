@@ -7,7 +7,7 @@ Live Link : CareCompanion AI — Smart Elderly Care Platform https://share.googl
 
 CareCompanion AI is an intelligent, AI-driven healthcare companion designed to help elderly individuals live independently, safely, and with dignity. The platform provides real-time health monitoring, medication reminders, emergency alerts, nutrition guidance, and seamless connectivity with caregivers and doctors through a voice-first and easy-to-use interface.
 
-This project is developed for the **AI-Driven Healthcare Hackathon 2025**.
+This project is developed for the **AI-Driven Healthcare Hackathon 2026**.
 
 ---
 
